@@ -29,18 +29,19 @@ def client(test_engine):
         bind=test_engine, class_=AsyncSession, expire_on_commit=False
     )
 
+    from unittest.mock import patch
     from main import app
     from db.session import get_db
-    from api.auth import _auth_attempts
 
     async def override_get_db():
         async with async_session() as session:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
-    _auth_attempts.clear()
-    c = TestClient(app)
-    yield c
+    # Bypass Redis-based auth rate limiting in tests (no live Redis)
+    with patch("api.auth.is_rate_limited", return_value=False):
+        c = TestClient(app)
+        yield c
     app.dependency_overrides.clear()
     loop.run_until_complete(test_engine.dispose())
     loop.close()

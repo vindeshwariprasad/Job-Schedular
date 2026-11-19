@@ -46,18 +46,19 @@ def test_redis():
 
 @pytest.fixture
 def client(test_db):
+    from unittest.mock import patch
     from main import app
     from db.session import get_db
-    from api.auth import _auth_attempts
     from tests.async_test_helpers import SyncToAsyncSessionWrapper
 
     async def override_get_db():
         yield SyncToAsyncSessionWrapper(test_db)
 
     app.dependency_overrides[get_db] = override_get_db
-    _auth_attempts.clear()
-    c = TestClient(app)
-    yield c
+    # Bypass Redis-based auth rate limiting in tests (no live Redis)
+    with patch("api.auth.is_rate_limited", return_value=False):
+        c = TestClient(app)
+        yield c
     app.dependency_overrides.clear()
 
 

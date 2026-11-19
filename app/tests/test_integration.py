@@ -60,18 +60,19 @@ def integration_redis():
 @pytest.fixture
 def app_client(integration_db):
     """FastAPI TestClient with DB dependency overridden (async wrapper)."""
+    from unittest.mock import patch
     from main import app
     from db.session import get_db
-    from api.auth import _auth_attempts
     from tests.async_test_helpers import SyncToAsyncSessionWrapper
 
     async def override_get_db():
         yield SyncToAsyncSessionWrapper(integration_db)
 
     app.dependency_overrides[get_db] = override_get_db
-    _auth_attempts.clear()
-    client = TestClient(app)
-    yield client
+    # Bypass Redis-based auth rate limiting in integration tests (no live Redis)
+    with patch("api.auth.is_rate_limited", return_value=False):
+        client = TestClient(app)
+        yield client
     app.dependency_overrides.clear()
 
 

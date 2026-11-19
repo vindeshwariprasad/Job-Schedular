@@ -1,5 +1,6 @@
-import re
+import math
 import httpx
+from simpleeval import SimpleEval, FeatureNotAvailable, NumberTooHigh
 from db.models.job import Job
 from logging_config import get_logger
 
@@ -14,8 +15,18 @@ DUMMY_ENDPOINTS = {
     "DELETE": "https://dummyjson.com/posts/1",
 }
 
-# Only allow digits, operators, parentheses, dots, and whitespace in math expressions.
-_SAFE_MATH_RE = re.compile(r"^[\d\s\+\-\*/\(\)\.]+$")
+# ─── Safe Math Evaluator ─────────────────────────
+MAX_EXPRESSION_LENGTH = 500
+
+_evaluator = SimpleEval()
+_evaluator.functions = {
+    "abs": abs,
+    "round": round,
+    "min": min,
+    "max": max,
+    "int": int,
+    "float": float,
+}
 
 
 def execute_job(job: Job) -> dict:
@@ -121,6 +132,10 @@ def _execute_string(job: Job) -> dict:
 def _execute_math(job: Job) -> dict:
     """Evaluate a safe math expression and return the result.
 
+    Uses simpleeval for sandboxed evaluation. Supports:
+        Operators:  + - * / ** %
+        Functions:  abs, round, min, max, int, float
+
     Expected payload:
         {
             "expression": "2 + 3 * (4 - 1)"
@@ -132,15 +147,24 @@ def _execute_math(job: Job) -> dict:
     if not isinstance(expression, str) or not expression.strip():
         raise ValueError("Payload must contain a non-empty 'expression' string")
 
-    if not _SAFE_MATH_RE.match(expression):
+    if len(expression) > MAX_EXPRESSION_LENGTH:
         raise ValueError(
-            f"Invalid math expression: only numbers and + - * / ( ) . are allowed"
+            f"Expression exceeds maximum length of {MAX_EXPRESSION_LENGTH} characters"
         )
 
     try:
-        result = eval(expression, {"__builtins__": {}}, {})  # noqa: S307
+        result = _evaluator.eval(expression)
+    except ZeroDivisionError:
+        raise ValueError("Division by zero is not allowed")
+    except FeatureNotAvailable:
+        raise ValueError("Operation not permitted in math expressions")
+    except NumberTooHigh:
+        raise ValueError("Result too large to compute")
     except Exception as e:
         raise ValueError(f"Failed to evaluate expression '{expression}': {e}")
+
+    if isinstance(result, float) and (math.isinf(result) or math.isnan(result)):
+        raise ValueError("Expression produced an invalid result (infinity or NaN)")
 
     logger.info(
         "Math evaluation completed: %s = %s",

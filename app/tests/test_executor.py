@@ -3,7 +3,10 @@
 from unittest.mock import patch, MagicMock
 import pytest
 
-from worker.executor import execute_job, _execute_api_call, _execute_string, _execute_math
+from worker.executor import (
+    execute_job, _execute_api_call, _execute_string, _execute_math,
+    MAX_EXPRESSION_LENGTH,
+)
 
 
 def _make_job(task_type="api_call", payload=None):
@@ -123,9 +126,9 @@ class TestMathExecutor:
         assert result["result"] == 2.5
 
     def test_invalid_expression_raises(self):
-        """Expressions with letters or unsafe characters should be rejected."""
+        """Expressions with invalid syntax should be rejected."""
         job = _make_job("math", {"expression": "rm -rf /"})
-        with pytest.raises(ValueError, match="Invalid math expression"):
+        with pytest.raises(ValueError):
             _execute_math(job)
 
     def test_empty_expression_raises(self):
@@ -137,5 +140,113 @@ class TestMathExecutor:
     def test_import_blocked(self):
         """Expressions with import attempts should be rejected."""
         job = _make_job("math", {"expression": "__import__('os')"})
-        with pytest.raises(ValueError, match="Invalid math expression"):
+        with pytest.raises(ValueError):
+            _execute_math(job)
+
+    # ─── New: Expanded operator tests ────────────────
+
+    def test_power_operator(self):
+        """Power operator ** should work."""
+        job = _make_job("math", {"expression": "2 ** 10"})
+        result = _execute_math(job)
+        assert result["result"] == 1024
+
+    def test_modulo_operator(self):
+        """Modulo operator % should work."""
+        job = _make_job("math", {"expression": "17 % 5"})
+        result = _execute_math(job)
+        assert result["result"] == 2
+
+    # ─── New: Function tests ─────────────────────────
+
+    def test_abs_function(self):
+        """abs() should return absolute value."""
+        job = _make_job("math", {"expression": "abs(-42)"})
+        result = _execute_math(job)
+        assert result["result"] == 42
+
+    def test_round_function(self):
+        """round() should round to specified decimals."""
+        job = _make_job("math", {"expression": "round(3.14159, 2)"})
+        result = _execute_math(job)
+        assert result["result"] == 3.14
+
+    def test_min_function(self):
+        """min() should return the smallest value."""
+        job = _make_job("math", {"expression": "min(3, 1, 2)"})
+        result = _execute_math(job)
+        assert result["result"] == 1
+
+    def test_max_function(self):
+        """max() should return the largest value."""
+        job = _make_job("math", {"expression": "max(3, 1, 2)"})
+        result = _execute_math(job)
+        assert result["result"] == 3
+
+    def test_int_function(self):
+        """int() should truncate to integer."""
+        job = _make_job("math", {"expression": "int(3.7)"})
+        result = _execute_math(job)
+        assert result["result"] == 3
+
+    def test_float_function(self):
+        """float() should convert to float."""
+        job = _make_job("math", {"expression": "float(5)"})
+        result = _execute_math(job)
+        assert result["result"] == 5.0
+
+    def test_combined_functions(self):
+        """Nested function calls should work."""
+        job = _make_job("math", {"expression": "abs(min(-3, -1, -2))"})
+        result = _execute_math(job)
+        assert result["result"] == 3
+
+    # ─── New: Safety and limit tests ─────────────────
+
+    def test_division_by_zero(self):
+        """Division by zero should return a clear error."""
+        job = _make_job("math", {"expression": "1 / 0"})
+        with pytest.raises(ValueError, match="Division by zero"):
+            _execute_math(job)
+
+    def test_expression_too_long(self):
+        """Expression exceeding MAX_EXPRESSION_LENGTH should be rejected."""
+        long_expr = "1+" * ((MAX_EXPRESSION_LENGTH // 2) + 1)
+        job = _make_job("math", {"expression": long_expr})
+        with pytest.raises(ValueError, match="maximum length"):
+            _execute_math(job)
+
+    def test_expression_at_limit(self):
+        """Expression exactly at MAX_EXPRESSION_LENGTH should succeed."""
+        # Build an expression of exactly MAX_EXPRESSION_LENGTH characters
+        # "1+1+1+...+1" — each "1+" is 2 chars, final "1" is 1 char
+        pairs = (MAX_EXPRESSION_LENGTH - 1) // 2
+        expr = "1+" * pairs + "1"
+        assert len(expr) <= MAX_EXPRESSION_LENGTH
+        job = _make_job("math", {"expression": expr})
+        result = _execute_math(job)
+        assert result["result"] == pairs + 1
+
+    def test_inf_result_rejected(self):
+        """Expression producing infinity should be rejected."""
+        job = _make_job("math", {"expression": "1e308 * 10"})
+        with pytest.raises(ValueError, match="invalid result"):
+            _execute_math(job)
+
+    def test_dangerous_attribute_access_blocked(self):
+        """Dangerous dunder attribute access via method chaining should be blocked."""
+        job = _make_job("math", {"expression": "''.__class__.__mro__"})
+        with pytest.raises(ValueError):
+            _execute_math(job)
+
+    def test_nested_eval_blocked(self):
+        """Calling eval() should be blocked (not in allowed functions)."""
+        job = _make_job("math", {"expression": "eval('1+1')"})
+        with pytest.raises(ValueError):
+            _execute_math(job)
+
+    def test_dunder_access_blocked(self):
+        """Dunder attribute access should be blocked."""
+        job = _make_job("math", {"expression": "().__class__.__bases__"})
+        with pytest.raises(ValueError):
             _execute_math(job)
