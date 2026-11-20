@@ -8,7 +8,19 @@ export function useExecutionWebSocket() {
   const wsRef = useRef(null);
   const reconnectCountRef = useRef(0);
   const reconnectTimerRef = useRef(null);
+  const connectRef = useRef(null);
   const queryClient = useQueryClient();
+
+  const attemptReconnect = useCallback(() => {
+    if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) return;
+
+    const delay = Math.min(1000 * Math.pow(2, reconnectCountRef.current), 30000);
+    reconnectCountRef.current += 1;
+
+    reconnectTimerRef.current = setTimeout(() => {
+      connectRef.current?.();
+    }, delay);
+  }, []);
 
   const connect = useCallback(() => {
     const token = localStorage.getItem("token");
@@ -51,21 +63,15 @@ export function useExecutionWebSocket() {
     ws.onerror = () => {
       ws.close();
     };
-  }, [queryClient]);
+  }, [queryClient, attemptReconnect]);
 
-  const attemptReconnect = useCallback(() => {
-    if (reconnectCountRef.current >= MAX_RECONNECT_ATTEMPTS) return;
-
-    const delay = Math.min(1000 * Math.pow(2, reconnectCountRef.current), 30000);
-    reconnectCountRef.current += 1;
-
-    reconnectTimerRef.current = setTimeout(() => {
-      connect();
-    }, delay);
+  // Keep connectRef in sync so attemptReconnect can call the latest connect
+  useEffect(() => {
+    connectRef.current = connect;
   }, [connect]);
 
   useEffect(() => {
-    connect();
+    connect(); // eslint-disable-line react-hooks/set-state-in-effect -- WebSocket setup legitimately sets state via callbacks
 
     return () => {
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);

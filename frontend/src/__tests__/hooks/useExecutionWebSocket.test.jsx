@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeEach } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useExecutionWebSocket } from "../../hooks/useExecutionWebSocket";
 
@@ -29,7 +29,7 @@ describe("useExecutionWebSocket", () => {
   it("attempts connection when token exists", async () => {
     localStorage.setItem("token", "test-token");
 
-    const { result } = renderHook(() => useExecutionWebSocket(), {
+    renderHook(() => useExecutionWebSocket(), {
       wrapper: createWrapper(),
     });
 

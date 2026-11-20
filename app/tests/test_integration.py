@@ -640,7 +640,7 @@ class TestDLQReplayIntegration:
                     SyncToAsyncSessionWrapper(integration_db), execution_id
                 )
 
-        result = asyncio.get_event_loop().run_until_complete(_replay())
+        result = asyncio.run(_replay())
 
         assert result["status"] == "replayed"
         assert result["new_execution_id"] != execution_id
