@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 
 from alembic import context
-from sqlalchemy import create_engine, pool
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, pool
 
 # Add the app directory to sys.path so 'db', 'queues', etc. can be imported
 app_dir = str(Path(__file__).resolve().parent.parent.parent)
@@ -14,8 +14,8 @@ if app_dir not in sys.path:
 # Load .env from the app directory
 load_dotenv(dotenv_path=Path(app_dir) / ".env")
 
-from db.base import Base
-from db.models import *  # noqa: F401,F403 - register all models with metadata
+from db.base import Base  # noqa: E402
+from db.models import *  # noqa: E402, F401, F403 - register all models with metadata
 
 target_metadata = Base.metadata
 

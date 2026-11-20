@@ -1,8 +1,9 @@
 import math
+
 import httpx
-from simpleeval import SimpleEval, FeatureNotAvailable, NumberTooHigh
 from db.models.job import Job
 from logging_config import get_logger
+from simpleeval import FeatureNotAvailable, NumberTooHigh, SimpleEval
 
 logger = get_logger("worker.executor")
 
@@ -155,13 +156,13 @@ def _execute_math(job: Job) -> dict:
     try:
         result = _evaluator.eval(expression)
     except ZeroDivisionError:
-        raise ValueError("Division by zero is not allowed")
+        raise ValueError("Division by zero is not allowed") from None
     except FeatureNotAvailable:
-        raise ValueError("Operation not permitted in math expressions")
+        raise ValueError("Operation not permitted in math expressions") from None
     except NumberTooHigh:
-        raise ValueError("Result too large to compute")
+        raise ValueError("Result too large to compute") from None
     except Exception as e:
-        raise ValueError(f"Failed to evaluate expression '{expression}': {e}")
+        raise ValueError(f"Failed to evaluate expression '{expression}': {e}") from e
 
     if isinstance(result, float) and (math.isinf(result) or math.isnan(result)):
         raise ValueError("Expression produced an invalid result (infinity or NaN)")

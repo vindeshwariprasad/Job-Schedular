@@ -1,19 +1,20 @@
 """Tests for Prometheus metrics definitions."""
 
-from prometheus_client import Counter, Gauge, Histogram
-
 from metrics.prometheus import (
+    auth_redis_failures_total,
+    job_dlq_total,
+    job_execution_duration,
     job_executions_total,
-    job_success_total,
     job_failure_total,
     job_retry_total,
-    job_dlq_total,
-    queue_ready_size,
-    queue_processing_size,
+    job_success_total,
     queue_failed_size,
+    queue_processing_size,
+    queue_ready_size,
+    redis_up,
     running_executions,
-    job_execution_duration,
 )
+from prometheus_client import Counter, Gauge, Histogram
 
 
 class TestCounterMetrics:
@@ -98,3 +99,30 @@ class TestMetricsFunctionality:
     def test_histogram_observe(self):
         # Should not raise
         job_execution_duration.observe(1.5)
+
+
+class TestInfrastructureHealthMetrics:
+
+    def test_redis_up_is_gauge(self):
+        assert isinstance(redis_up, Gauge)
+
+    def test_redis_up_name(self):
+        assert redis_up._name == "redis_up"
+
+    def test_redis_up_set_values(self):
+        redis_up.set(1)
+        assert redis_up._value.get() == 1
+        redis_up.set(0)
+        assert redis_up._value.get() == 0
+
+    def test_auth_redis_failures_total_is_counter(self):
+        assert isinstance(auth_redis_failures_total, Counter)
+
+    def test_auth_redis_failures_total_name(self):
+        assert "auth_redis_failures" in auth_redis_failures_total._name
+
+    def test_auth_redis_failures_total_increments(self):
+        before = auth_redis_failures_total._value.get()
+        auth_redis_failures_total.inc()
+        after = auth_redis_failures_total._value.get()
+        assert after == before + 1

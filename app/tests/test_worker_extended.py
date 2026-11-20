@@ -1,22 +1,19 @@
 """Extended tests for worker: _publish_update, rate limiting, handle_task, process_execution edge cases."""
 
 import json
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
-
-from db.models.job import Job
+from db.models.dead_letter import DeadLetterJob
 from db.models.execution import Execution, ExecutionStatus
 from db.models.retry_policy import RetryPolicy
-from db.models.dead_letter import DeadLetterJob
 from worker.worker import (
+    PUBSUB_CHANNEL,
     _publish_update,
-    update_queue_metrics,
     handle_failure,
     process_execution,
-    handle_task,
-    PUBSUB_CHANNEL,
+    update_queue_metrics,
 )
 
 
@@ -29,8 +26,8 @@ class TestPublishUpdate:
         execution.job_id = 1
         execution.status = ExecutionStatus.SUCCESS
         execution.attempt = 1
-        execution.started_at = datetime.now(timezone.utc)
-        execution.finished_at = datetime.now(timezone.utc)
+        execution.started_at = datetime.now(UTC)
+        execution.finished_at = datetime.now(UTC)
         execution.error = None
 
         job = MagicMock()
@@ -48,7 +45,7 @@ class TestPublishUpdate:
         execution.job_id = 5
         execution.status = ExecutionStatus.RUNNING
         execution.attempt = 2
-        execution.started_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        execution.started_at = datetime(2024, 1, 1, tzinfo=UTC)
         execution.finished_at = None
         execution.error = "Some error"
 
@@ -258,7 +255,7 @@ class TestHandleFailureExtended:
             execution_id=exec_id,
             status=ExecutionStatus.RUNNING,
             attempt=attempt,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         db.add(ex)
         db.commit()

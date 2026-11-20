@@ -1,6 +1,6 @@
-from .user import User
-from .job import Job
-from .schedule import Schedule
-from .execution import Execution
-from .retry_policy import RetryPolicy
-from .dead_letter import DeadLetterJob
+from .dead_letter import DeadLetterJob as DeadLetterJob
+from .execution import Execution as Execution
+from .job import Job as Job
+from .retry_policy import RetryPolicy as RetryPolicy
+from .schedule import Schedule as Schedule
+from .user import User as User

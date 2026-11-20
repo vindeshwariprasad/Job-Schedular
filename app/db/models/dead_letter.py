@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, JSON
-from sqlalchemy.sql import func
 from db.base import Base
+from sqlalchemy import JSON, Column, DateTime, Integer, String
+from sqlalchemy.sql import func
+
 
 class DeadLetterJob(Base):
     __tablename__ = "dead_letter_jobs"

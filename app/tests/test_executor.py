@@ -1,11 +1,14 @@
 """Tests for the job executor: api_call, string_manipulation, and math task types."""
 
-from unittest.mock import patch, MagicMock
-import pytest
+from unittest.mock import MagicMock, patch
 
+import pytest
 from worker.executor import (
-    execute_job, _execute_api_call, _execute_string, _execute_math,
     MAX_EXPRESSION_LENGTH,
+    _execute_api_call,
+    _execute_math,
+    _execute_string,
+    execute_job,
 )
 
 

@@ -1,19 +1,19 @@
 """Extended tests for admin DLQ API endpoints: queue details, pagination, filtering, stats with data."""
 
 import json
-import pytest
-from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+
+import pytest
+from db.base import Base
+from db.models.dead_letter import DeadLetterJob
+from db.models.execution import Execution, ExecutionStatus
+from db.models.job import Job
+from db.models.user import User
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from db.base import Base
-from db.models.user import User
-from db.models.job import Job
-from db.models.execution import Execution, ExecutionStatus
-from db.models.dead_letter import DeadLetterJob
 from tests.conftest import FakeRedis
 
 
@@ -47,8 +47,10 @@ def test_redis():
 @pytest.fixture
 def client(test_db):
     from unittest.mock import patch
-    from main import app
+
     from db.session import get_db
+    from main import app
+
     from tests.async_test_helpers import SyncToAsyncSessionWrapper
 
     async def override_get_db():

@@ -60,4 +60,17 @@ job_execution_duration = Histogram(
     buckets=(0.1, 0.5, 1, 2, 5, 10, 30),
 )
 
+# -----------------------------
+# Infrastructure Health
+# -----------------------------
+redis_up = Gauge(
+    "redis_up",
+    "Whether Redis is reachable (1 = up, 0 = down)",
+)
+
+auth_redis_failures_total = Counter(
+    "auth_redis_failures_total",
+    "Auth rate-limit checks that failed due to Redis unavailability",
+)
+
 

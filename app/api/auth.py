@@ -1,18 +1,18 @@
-import os
 import asyncio
+import os
 
+from auth import create_access_token, get_current_user, hash_password, verify_password
+from db.models.user import User
+from db.session import get_db
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from logging_config import get_logger
+from metrics.prometheus import auth_redis_failures_total
+from queues.rate_limiter import is_rate_limited
+from queues.redis_client import redis_client
+from redis.exceptions import RedisError
+from schemas.auth import Token, UserLogin, UserRegister, UserResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from redis.exceptions import RedisError
-
-from db.session import get_db
-from db.models.user import User
-from schemas.auth import UserRegister, UserLogin, UserResponse, Token
-from auth import hash_password, verify_password, create_access_token, get_current_user
-from queues.redis_client import redis_client
-from queues.rate_limiter import is_rate_limited
-from logging_config import get_logger
 
 logger = get_logger("api.auth")
 
@@ -38,6 +38,7 @@ async def _check_auth_rate_limit(request: Request) -> None:
             window_seconds=AUTH_RATE_WINDOW,
         )
     except (ConnectionError, TimeoutError, RedisError) as e:
+        auth_redis_failures_total.inc()
         logger.error(
             "Redis unavailable for auth rate limiting: %s",
             e,
@@ -51,7 +52,7 @@ async def _check_auth_rate_limit(request: Request) -> None:
                 "message": "Authentication service temporarily unavailable. Please try again later.",
             },
             headers={"Retry-After": "30"},
-        )
+        ) from None
 
     if limited:
         raise HTTPException(

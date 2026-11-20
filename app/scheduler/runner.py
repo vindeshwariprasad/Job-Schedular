@@ -1,10 +1,10 @@
+import signal
 import sys
 import time
-import signal
 
 from db.session import SessionLocal
-from scheduler.scheduler import run_scheduler_once, recover_orphaned_executions
 from logging_config import get_logger
+from scheduler.scheduler import recover_orphaned_executions, run_scheduler_once
 
 logger = get_logger("scheduler.runner")
 

@@ -1,22 +1,23 @@
 import asyncio
-import os
-import uuid
 import logging
+import os
 import traceback
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, FastAPI, Response, Request, WebSocket, WebSocketDisconnect, Query
-from fastapi.responses import JSONResponse
+from api import auth, jobs, schedules
+from api import metrics as worker_metrics_api
+from api.admin_dlq import router as admin_dlq_router
+from auth import decode_token
+from db.session import async_engine
+from fastapi import APIRouter, FastAPI, Query, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import JSONResponse
+from metrics.prometheus import redis_up
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from queues.redis_client import redis_client
 from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
-
-from api import jobs, schedules, metrics as worker_metrics_api, auth
-from api.admin_dlq import router as admin_dlq_router
-from db.session import async_engine
-from queues.redis_client import redis_client
-from auth import decode_token
 from websocket.connection_manager import manager as ws_manager
 from websocket.redis_listener import listen_to_execution_updates
 
@@ -108,19 +109,26 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health", tags=["monitoring"])
 async def health_check():
     checks = {"status": "healthy", "postgres": "up", "redis": "up"}
+    is_healthy = True
 
     try:
         async with async_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
     except Exception:
         checks["postgres"] = "down"
-        checks["status"] = "degraded"
+        is_healthy = False
 
     try:
         redis_client.ping()
+        redis_up.set(1)
     except Exception:
         checks["redis"] = "down"
-        checks["status"] = "degraded"
+        redis_up.set(0)
+        is_healthy = False
+
+    if not is_healthy:
+        checks["status"] = "unhealthy"
+        return JSONResponse(content=checks, status_code=503)
 
     return checks
 

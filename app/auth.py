@@ -1,13 +1,14 @@
 import os
-from datetime import datetime, timedelta, timezone
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from datetime import UTC, datetime, timedelta
+
 import bcrypt
+from db.models.user import User
+from db.session import get_db
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.session import get_db
-from db.models.user import User
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:
@@ -31,7 +32,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    expire = datetime.now(UTC) + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -54,7 +55,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
-        )
+        ) from None
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

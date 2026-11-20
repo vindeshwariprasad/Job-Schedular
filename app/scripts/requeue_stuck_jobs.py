@@ -1,18 +1,18 @@
 import json
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.orm import Session
+from datetime import UTC, datetime, timedelta
 
-from db.models.execution import Execution, ExecutionStatus
-from queues.redis_client import redis_client
-from db.session import SessionLocal
 from config import VISIBILITY_TIMEOUT
-from constants import QUEUE_READY, QUEUE_PROCESSING
+from constants import QUEUE_PROCESSING, QUEUE_READY
+from db.models.execution import Execution, ExecutionStatus
+from db.session import SessionLocal
+from queues.redis_client import redis_client
+from sqlalchemy.orm import Session
 
 
 def requeue_stuck_jobs():
     db: Session = SessionLocal()
 
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=VISIBILITY_TIMEOUT)
+    cutoff = datetime.now(UTC) - timedelta(seconds=VISIBILITY_TIMEOUT)
 
     # 1. Recover RUNNING jobs that have been stuck too long
     stuck_running = (

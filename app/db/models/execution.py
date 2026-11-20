@@ -1,13 +1,11 @@
-from enum import Enum
+from enum import StrEnum
 
-from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
-)
-from sqlalchemy.sql import func
 from db.base import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.sql import func
 
 
-class ExecutionStatus(str, Enum):
+class ExecutionStatus(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"

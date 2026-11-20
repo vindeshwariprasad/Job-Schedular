@@ -1,15 +1,15 @@
+from datetime import UTC, datetime
+
+from auth import get_current_user
+from croniter import croniter
+from db.models.job import Job
+from db.models.schedule import Schedule, ScheduleStatus
+from db.models.user import User
+from db.session import get_db
 from fastapi import APIRouter, Depends, HTTPException
+from schemas.schedule import ScheduleCreate, ScheduleResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
-from croniter import croniter
-from db.session import get_db
-
-from db.models.job import Job
-from db.models.user import User
-from db.models.schedule import Schedule, ScheduleStatus
-from schemas.schedule import ScheduleCreate, ScheduleResponse
-from auth import get_current_user
 
 router = APIRouter(prefix="/jobs", tags=["schedules"])
 
@@ -39,12 +39,12 @@ async def create_schedule(
         raise HTTPException(status_code=409, detail={"error_code": "SCHEDULE_EXISTS", "message": "Schedule already exists for this job"})
 
     # Validate cron
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     try:
         cron = croniter(payload.cron_expression, now)
         next_run_at = cron.get_next(datetime)
     except Exception:
-        raise HTTPException(status_code=400, detail={"error_code": "INVALID_CRON", "message": "Invalid cron expression"})
+        raise HTTPException(status_code=400, detail={"error_code": "INVALID_CRON", "message": "Invalid cron expression"}) from None
 
     schedule = Schedule(
         job_id=job_id,
@@ -113,7 +113,7 @@ async def resume_schedule(
         raise HTTPException(status_code=400, detail={"error_code": "SCHEDULE_NOT_PAUSED", "message": "Schedule is not paused"})
 
     # Recalculate next_run_at from now
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cron = croniter(schedule.cron_expression, now)
     schedule.next_run_at = cron.get_next(datetime)
     schedule.status = ScheduleStatus.ACTIVE

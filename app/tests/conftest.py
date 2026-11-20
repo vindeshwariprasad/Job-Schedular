@@ -1,18 +1,13 @@
+
 import pytest
 import pytest_asyncio
-from unittest.mock import MagicMock
+from db.base import Base
+from db.models.job import Job
+from db.models.user import User
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
-from db.base import Base
-from db.models.user import User
-from db.models.job import Job
-from db.models.schedule import Schedule, ScheduleStatus
-from db.models.execution import Execution, ExecutionStatus
-from db.models.retry_policy import RetryPolicy
-from db.models.dead_letter import DeadLetterJob
 
 
 # ------------------------------------

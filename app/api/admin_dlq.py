@@ -1,17 +1,17 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, case
-from sqlalchemy.ext.asyncio import AsyncSession
-from db.session import get_db
+from auth import get_current_user
+from constants import QUEUE_FAILED, QUEUE_PROCESSING, QUEUE_READY
 from db.models.dead_letter import DeadLetterJob
+from db.models.execution import Execution, ExecutionStatus
 from db.models.job import Job
 from db.models.user import User
-from services.dlq_service import replay_dlq_execution
-from db.models.execution import Execution, ExecutionStatus
+from db.session import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query
 from queues.redis_client import redis_client
-from auth import get_current_user
-from constants import QUEUE_READY, QUEUE_PROCESSING, QUEUE_FAILED
+from services.dlq_service import replay_dlq_execution
+from sqlalchemy import case, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/admin/dlq", tags=["Admin DLQ"])
 
@@ -152,7 +152,7 @@ async def replay_dlq(
     try:
         return await replay_dlq_execution(db, execution_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from None
 
 
 @router.get("/executions")

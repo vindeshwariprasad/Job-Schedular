@@ -1,8 +1,10 @@
 import asyncio
 import json
-import redis.asyncio as aioredis
 import os
+
+import redis.asyncio as aioredis
 from logging_config import get_logger
+
 from websocket.connection_manager import manager
 
 logger = get_logger("websocket.redis_listener")

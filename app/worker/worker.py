@@ -1,52 +1,48 @@
 from __future__ import annotations
 
 import json
-import time
-import sys
 import signal
-import types
+import sys
 import threading
-from concurrent.futures import ThreadPoolExecutor, Future
-from datetime import datetime, timezone
-from sqlalchemy.orm import Session
-from redis import Redis
+import time
+import types
+from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import UTC, datetime
 
+from config import (
+    BASE_RETRY_DELAY,
+    JOB_EXECUTION_TIMEOUT,
+    MAX_RETRIES,
+    MAX_WORKERS,
+    RATE_LIMIT_WINDOW,
+    WORKER_POLL_TIMEOUT,
+)
+from constants import QUEUE_FAILED, QUEUE_PROCESSING, QUEUE_READY
+from db.models.dead_letter import DeadLetterJob
 from db.models.execution import Execution, ExecutionStatus
 from db.models.job import Job
 from db.models.retry_policy import RetryPolicy
-from db.models.dead_letter import DeadLetterJob
-
 from db.session import SessionLocal
-from queues.redis_client import redis_client
-from worker.executor import execute_job
-from queues.rate_limiter import is_rate_limited
 from logging_config import get_logger
-
-from config import (
-    WORKER_POLL_TIMEOUT,
-    RATE_LIMIT_WINDOW,
-    BASE_RETRY_DELAY,
-    MAX_RETRIES,
-    JOB_EXECUTION_TIMEOUT,
-    MAX_WORKERS,
-)
-
-logger = get_logger("worker")
-
 from metrics.prometheus import (
+    job_dlq_total,
+    job_execution_duration,
     job_executions_total,
-    job_success_total,
     job_failure_total,
     job_retry_total,
-    job_dlq_total,
-    running_executions,
-    job_execution_duration,
-    queue_ready_size,
-    queue_processing_size,
+    job_success_total,
     queue_failed_size,
+    queue_processing_size,
+    queue_ready_size,
+    running_executions,
 )
+from queues.rate_limiter import is_rate_limited
+from queues.redis_client import redis_client
+from redis import Redis
+from sqlalchemy.orm import Session
+from worker.executor import execute_job
 
-from constants import QUEUE_READY, QUEUE_PROCESSING, QUEUE_FAILED
+logger = get_logger("worker")
 
 PUBSUB_CHANNEL = "execution:updates"
 
@@ -217,7 +213,7 @@ def process_execution(db: Session, redis: Redis, execution_id: str) -> None:
 
     # Mark RUNNING (only after rate-limit passes)
     execution.status = ExecutionStatus.RUNNING
-    execution.started_at = datetime.now(timezone.utc)
+    execution.started_at = datetime.now(UTC)
     db.commit()
     _publish_update(redis, execution, job)
 
@@ -276,7 +272,7 @@ def process_execution(db: Session, redis: Redis, execution_id: str) -> None:
     # SUCCESS
     # ----------------------------
     execution.status = ExecutionStatus.SUCCESS
-    execution.finished_at = datetime.now(timezone.utc)
+    execution.finished_at = datetime.now(UTC)
     db.commit()
     _publish_update(redis, execution, job)
 

@@ -1,14 +1,14 @@
 """Tests for config.py and constants.py."""
 
 from config import (
-    MAX_RETRIES,
-    VISIBILITY_TIMEOUT,
-    WORKER_POLL_TIMEOUT,
-    RATE_LIMIT_WINDOW,
     BASE_RETRY_DELAY,
     JOB_EXECUTION_TIMEOUT,
+    MAX_RETRIES,
+    RATE_LIMIT_WINDOW,
+    VISIBILITY_TIMEOUT,
+    WORKER_POLL_TIMEOUT,
 )
-from constants import QUEUE_READY, QUEUE_PROCESSING, QUEUE_FAILED
+from constants import QUEUE_FAILED, QUEUE_PROCESSING, QUEUE_READY
 
 
 class TestConfig:

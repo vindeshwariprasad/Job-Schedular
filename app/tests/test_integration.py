@@ -7,22 +7,18 @@ Uses FastAPI TestClient + direct function calls to scheduler/worker,
 all against in-memory SQLite + FakeRedis. No external services needed.
 """
 
-import json
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
+from db.base import Base
+from db.models.execution import Execution, ExecutionStatus
+from db.models.job import Job
+from db.models.schedule import Schedule, ScheduleStatus
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
-from db.base import Base
-from db.models.job import Job
-from db.models.schedule import Schedule, ScheduleStatus
-from db.models.execution import Execution, ExecutionStatus
-from db.models.user import User
-
 
 # ── Fixtures ─────────────────────────────────────────
 
@@ -61,8 +57,10 @@ def integration_redis():
 def app_client(integration_db):
     """FastAPI TestClient with DB dependency overridden (async wrapper)."""
     from unittest.mock import patch
-    from main import app
+
     from db.session import get_db
+    from main import app
+
     from tests.async_test_helpers import SyncToAsyncSessionWrapper
 
     async def override_get_db():
@@ -130,7 +128,7 @@ class TestFullJobLifecycle:
 
         # Manually set next_run_at to the past so scheduler picks it up
         schedule = integration_db.query(Schedule).filter(Schedule.job_id == job_id).first()
-        schedule.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        schedule.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
         integration_db.commit()
 
         # ── Step 4: Run Scheduler ──
@@ -192,7 +190,7 @@ class TestFullJobLifecycle:
 
         # Set next_run_at to past
         schedule = integration_db.query(Schedule).filter(Schedule.job_id == job_id).first()
-        schedule.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        schedule.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
         integration_db.commit()
 
         # Run scheduler
@@ -611,7 +609,7 @@ class TestDLQReplayIntegration:
         }, headers=headers)
 
         schedule = integration_db.query(Schedule).filter(Schedule.job_id == job_id).first()
-        schedule.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        schedule.next_run_at = datetime.now(UTC) - timedelta(minutes=1)
         integration_db.commit()
 
         with patch("scheduler.scheduler.redis_client", integration_redis):
@@ -631,8 +629,9 @@ class TestDLQReplayIntegration:
         assert execution.status == ExecutionStatus.FAILED
 
         # Replay via DLQ service (async function — wrap sync session)
-        from tests.async_test_helpers import SyncToAsyncSessionWrapper
         import asyncio
+
+        from tests.async_test_helpers import SyncToAsyncSessionWrapper
 
         async def _replay():
             with patch("services.dlq_service.redis_client", integration_redis):

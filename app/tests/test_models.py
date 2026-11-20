@@ -1,16 +1,15 @@
 """Comprehensive tests for all database models: User, Job, Schedule, Execution, RetryPolicy, DeadLetterJob."""
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
-from sqlalchemy.exc import IntegrityError
-
-from db.models.user import User
-from db.models.job import Job
-from db.models.schedule import Schedule, ScheduleStatus
-from db.models.execution import Execution, ExecutionStatus
-from db.models.retry_policy import RetryPolicy
 from db.models.dead_letter import DeadLetterJob
-
+from db.models.execution import Execution, ExecutionStatus
+from db.models.job import Job
+from db.models.retry_policy import RetryPolicy
+from db.models.schedule import Schedule, ScheduleStatus
+from db.models.user import User
+from sqlalchemy.exc import IntegrityError
 
 # ── User Model ────────────────────────────────────
 
@@ -146,7 +145,7 @@ class TestScheduleModel:
         assert schedule.max_runs is None
 
     def test_schedule_with_next_run(self, db, sample_job):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         schedule = Schedule(
             job_id=sample_job.id,
             cron_expression="*/10 * * * *",
@@ -197,7 +196,7 @@ class TestExecutionModel:
         assert ExecutionStatus.PENDING == "PENDING"
 
     def test_execution_with_timestamps(self, db, sample_job):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         execution = Execution(
             job_id=sample_job.id,
             execution_id="exec-002",

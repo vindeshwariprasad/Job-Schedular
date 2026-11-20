@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, JSON, DateTime
-from sqlalchemy.sql import func
 from db.base import Base
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.sql import func
+
 
 class Job(Base):
     __tablename__ = "jobs"

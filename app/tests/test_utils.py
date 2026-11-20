@@ -1,6 +1,7 @@
 """Tests for utility functions: generate_execution_id."""
 
 import uuid
+
 from utils.execution import generate_execution_id
 
 

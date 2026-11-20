@@ -1,6 +1,6 @@
 import re
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from typing import Dict
 
 ALLOWED_TASK_TYPES = {"api_call", "string_manipulation", "math"}
 ALLOWED_METHODS = {"GET", "POST", "PUT", "DELETE"}
@@ -11,7 +11,7 @@ _SAFE_MATH_RE = re.compile(r"^[\d\s\+\-\*/\(\)\.]+$")
 class JobCreate(BaseModel):
     name: str = Field(..., min_length=1)
     task_type: str = Field(..., examples=["api_call", "string_manipulation", "math"])
-    payload: Dict
+    payload: dict
     rate_limit_per_min: int = Field(default=60, ge=1)
 
     @model_validator(mode="after")
@@ -49,7 +49,7 @@ class JobCreate(BaseModel):
             except Exception:
                 raise ValueError(
                     f"Invalid math expression: '{expression}' cannot be evaluated"
-                )
+                ) from None
 
         return self
 
@@ -60,6 +60,6 @@ class JobResponse(BaseModel):
     id: int
     name: str
     task_type: str
-    payload: Dict
+    payload: dict
     rate_limit_per_min: int
     is_active: bool

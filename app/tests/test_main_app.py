@@ -1,12 +1,13 @@
 """Comprehensive tests for main.py: health check, metrics, global exception handler, WebSocket, CORS."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from db.base import Base
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
-
-from db.base import Base
+from starlette.websockets import WebSocketDisconnect
 
 
 @pytest.fixture
@@ -30,8 +31,9 @@ def client(test_engine):
     )
 
     from unittest.mock import patch
-    from main import app
+
     from db.session import get_db
+    from main import app
 
     async def override_get_db():
         async with async_session() as session:
@@ -81,7 +83,7 @@ class TestHealthCheck:
         assert data["postgres"] == "up"
         assert data["redis"] == "up"
 
-    def test_degraded_when_postgres_down(self, client):
+    def test_unhealthy_503_when_postgres_down(self, client):
         with patch("main.async_engine") as mock_engine, \
              patch("main.redis_client") as mock_redis:
             mock_engine.connect = MagicMock(return_value=AsyncMock())
@@ -90,12 +92,13 @@ class TestHealthCheck:
 
             resp = client.get("/health")
 
+        assert resp.status_code == 503
         data = resp.json()
-        assert data["status"] == "degraded"
+        assert data["status"] == "unhealthy"
         assert data["postgres"] == "down"
         assert data["redis"] == "up"
 
-    def test_degraded_when_redis_down(self, client):
+    def test_unhealthy_503_when_redis_down(self, client):
         with patch("main.async_engine") as mock_engine, \
              patch("main.redis_client") as mock_redis:
             mock_conn = AsyncMock()
@@ -107,12 +110,13 @@ class TestHealthCheck:
 
             resp = client.get("/health")
 
+        assert resp.status_code == 503
         data = resp.json()
-        assert data["status"] == "degraded"
+        assert data["status"] == "unhealthy"
         assert data["redis"] == "down"
         assert data["postgres"] == "up"
 
-    def test_degraded_when_both_down(self, client):
+    def test_unhealthy_503_when_both_down(self, client):
         with patch("main.async_engine") as mock_engine, \
              patch("main.redis_client") as mock_redis:
             mock_engine.connect = MagicMock(return_value=AsyncMock())
@@ -121,8 +125,9 @@ class TestHealthCheck:
 
             resp = client.get("/health")
 
+        assert resp.status_code == 503
         data = resp.json()
-        assert data["status"] == "degraded"
+        assert data["status"] == "unhealthy"
         assert data["postgres"] == "down"
         assert data["redis"] == "down"
 
@@ -179,13 +184,13 @@ class TestWebSocketEndpoint:
 
     def test_invalid_token_closes_connection(self, client):
         """WebSocket with invalid token should be closed with 4001."""
-        with pytest.raises(Exception):
+        with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/executions?token=invalid"):
                 pass
 
     def test_missing_token_rejected(self, client):
         """WebSocket without token param should be rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises((WebSocketDisconnect, KeyError)):
             with client.websocket_connect("/ws/executions"):
                 pass
 

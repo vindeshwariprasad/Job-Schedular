@@ -1,12 +1,12 @@
 """Comprehensive tests for Pydantic schema validation: auth, job, schedule schemas."""
 
+from datetime import UTC
+
 import pytest
 from pydantic import ValidationError
-
-from schemas.auth import UserRegister, UserLogin, UserResponse, Token
-from schemas.job import JobCreate, JobResponse, ALLOWED_TASK_TYPES, ALLOWED_METHODS
+from schemas.auth import Token, UserLogin, UserRegister, UserResponse
+from schemas.job import ALLOWED_METHODS, ALLOWED_TASK_TYPES, JobCreate, JobResponse
 from schemas.schedule import ScheduleCreate, ScheduleResponse
-
 
 # ── UserRegister Schema ───────────────────────────
 
@@ -91,13 +91,13 @@ class TestUserLoginSchema:
 class TestUserResponseSchema:
 
     def test_from_attributes(self):
+        from datetime import datetime
         from unittest.mock import MagicMock
-        from datetime import datetime, timezone
         user = MagicMock()
         user.id = 1
         user.username = "john"
         user.email = "john@example.com"
-        user.created_at = datetime.now(timezone.utc)
+        user.created_at = datetime.now(UTC)
         result = UserResponse.model_validate(user)
         assert result.id == 1
         assert result.username == "john"
@@ -108,14 +108,14 @@ class TestUserResponseSchema:
 class TestTokenSchema:
 
     def test_default_token_type(self):
-        from datetime import datetime, timezone
-        user_resp = UserResponse(id=1, username="john", email="john@example.com", created_at=datetime.now(timezone.utc))
+        from datetime import datetime
+        user_resp = UserResponse(id=1, username="john", email="john@example.com", created_at=datetime.now(UTC))
         token = Token(access_token="abc123", user=user_resp)
         assert token.token_type == "bearer"
 
     def test_custom_token_type(self):
-        from datetime import datetime, timezone
-        user_resp = UserResponse(id=1, username="john", email="john@example.com", created_at=datetime.now(timezone.utc))
+        from datetime import datetime
+        user_resp = UserResponse(id=1, username="john", email="john@example.com", created_at=datetime.now(UTC))
         token = Token(access_token="abc123", token_type="custom", user=user_resp)
         assert token.token_type == "custom"
 
@@ -368,13 +368,13 @@ class TestScheduleCreateSchema:
 class TestScheduleResponseSchema:
 
     def test_from_attributes(self):
+        from datetime import datetime
         from unittest.mock import MagicMock
-        from datetime import datetime, timezone
         sched = MagicMock()
         sched.id = 1
         sched.job_id = 1
         sched.cron_expression = "*/5 * * * *"
-        sched.next_run_at = datetime.now(timezone.utc)
+        sched.next_run_at = datetime.now(UTC)
         sched.status = "active"
         sched.max_runs = None
         sched.run_count = 0

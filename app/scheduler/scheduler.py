@@ -1,21 +1,20 @@
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from croniter import croniter
-
-MAX_JITTER_SECONDS = 5
-from sqlalchemy.orm import Session
-
-from db.models.schedule import Schedule, ScheduleStatus
-from db.models.execution import Execution, ExecutionStatus
-from queues.redis_client import redis_client
-from utils.execution import generate_execution_id
 from config import VISIBILITY_TIMEOUT
-from constants import QUEUE_READY, QUEUE_PROCESSING
+from constants import QUEUE_PROCESSING, QUEUE_READY
+from croniter import croniter
+from db.models.execution import Execution, ExecutionStatus
+from db.models.schedule import Schedule, ScheduleStatus
 from logging_config import get_logger
+from queues.redis_client import redis_client
+from sqlalchemy.orm import Session
+from utils.execution import generate_execution_id
 
 logger = get_logger("scheduler")
+
+MAX_JITTER_SECONDS = 5
 
 
 def run_scheduler_once(db: Session, batch_size: int = 100) -> int:
@@ -27,7 +26,7 @@ def run_scheduler_once(db: Session, batch_size: int = 100) -> int:
     Only picks up schedules that are active (not paused/completed).
     Respects max_runs limit.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Only pick active schedules that are due
     due_schedules = (
@@ -89,7 +88,7 @@ def recover_orphaned_executions(db: Session) -> None:
     Find PENDING/RUNNING executions that are not in any Redis queue
     and re-enqueue them. Runs automatically as part of the scheduler loop.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=VISIBILITY_TIMEOUT)
+    cutoff = datetime.now(UTC) - timedelta(seconds=VISIBILITY_TIMEOUT)
 
     # 1. Recover stuck RUNNING executions (started too long ago)
     stuck_running = (

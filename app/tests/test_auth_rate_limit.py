@@ -22,11 +22,11 @@ _mock_redis_client = MagicMock()
 _mock_redis_client.redis_client = MagicMock()
 sys.modules.setdefault("queues.redis_client", _mock_redis_client)
 
-import pytest
-from unittest.mock import patch
-from fastapi import HTTPException
+from unittest.mock import patch  # noqa: E402
 
-from api.auth import _check_auth_rate_limit, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW
+import pytest  # noqa: E402
+from api.auth import AUTH_RATE_LIMIT, AUTH_RATE_WINDOW, _check_auth_rate_limit  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
 
 
 def _make_request(client_ip: str = "192.168.1.1") -> MagicMock:
@@ -193,3 +193,18 @@ class TestAuthRateLimitRedisFailure:
                 # Verify exc_info=True was passed for stack trace
                 call_kwargs = mock_logger.error.call_args.kwargs
                 assert call_kwargs.get("exc_info") is True
+
+    @pytest.mark.asyncio
+    async def test_redis_failure_increments_prometheus_counter(self):
+        """Redis failure should increment auth_redis_failures_total metric."""
+        from metrics.prometheus import auth_redis_failures_total
+
+        request = _make_request()
+        before = auth_redis_failures_total._value.get()
+
+        with patch("api.auth.is_rate_limited", side_effect=ConnectionError("refused")):
+            with pytest.raises(HTTPException):
+                await _check_auth_rate_limit(request)
+
+        after = auth_redis_failures_total._value.get()
+        assert after == before + 1

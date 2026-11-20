@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, ForeignKey
 from db.base import Base
+from sqlalchemy import Column, ForeignKey, Integer
+
 
 class RetryPolicy(Base):
     __tablename__ = "retry_policies"

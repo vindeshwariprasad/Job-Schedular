@@ -1,7 +1,7 @@
 """Tests for the token-bucket rate limiter."""
 
 import time
-from unittest.mock import patch
+
 from queues.rate_limiter import is_rate_limited
 
 

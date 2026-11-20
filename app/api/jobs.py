@@ -1,16 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from db.session import get_db
-from db.models.job import Job
-from db.models.user import User
-from db.models.schedule import Schedule
-from db.models.execution import Execution
-from db.models.retry_policy import RetryPolicy
-from db.models.dead_letter import DeadLetterJob
-from schemas.job import JobCreate, JobResponse
 from auth import get_current_user
+from db.models.dead_letter import DeadLetterJob
+from db.models.execution import Execution
+from db.models.job import Job
+from db.models.retry_policy import RetryPolicy
+from db.models.schedule import Schedule
+from db.models.user import User
+from db.session import get_db
+from fastapi import APIRouter, Depends, HTTPException, Query
+from schemas.job import JobCreate, JobResponse
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 

@@ -1,12 +1,10 @@
 """Tests for scheduler logic: scheduling due jobs, max_runs, skipping paused schedules."""
 
-import json
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
-from db.models.schedule import Schedule, ScheduleStatus
 from db.models.execution import Execution, ExecutionStatus
-
+from db.models.schedule import Schedule, ScheduleStatus
 
 # We patch redis_client at the module level where scheduler imports it
 REDIS_PATCH = "scheduler.scheduler.redis_client"
@@ -20,7 +18,7 @@ class TestRunSchedulerOnce:
         schedule = Schedule(
             job_id=sample_job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.ACTIVE,
             run_count=0,
         )
@@ -45,7 +43,7 @@ class TestRunSchedulerOnce:
         schedule = Schedule(
             job_id=sample_job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.PAUSED,
             run_count=0,
         )
@@ -64,7 +62,7 @@ class TestRunSchedulerOnce:
         schedule = Schedule(
             job_id=sample_job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            next_run_at=datetime.now(UTC) + timedelta(hours=1),
             status=ScheduleStatus.ACTIVE,
             run_count=0,
         )
@@ -82,7 +80,7 @@ class TestRunSchedulerOnce:
         schedule = Schedule(
             job_id=sample_job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.ACTIVE,
             max_runs=3,
             run_count=2,  # next run will be the 3rd
@@ -101,7 +99,7 @@ class TestRunSchedulerOnce:
 
     def test_updates_next_run_at(self, db, sample_job, fake_redis):
         """After processing, next_run_at should advance to the next cron tick."""
-        past = datetime.now(timezone.utc) - timedelta(minutes=1)
+        past = datetime.now(UTC) - timedelta(minutes=1)
         schedule = Schedule(
             job_id=sample_job.id,
             cron_expression="*/5 * * * *",

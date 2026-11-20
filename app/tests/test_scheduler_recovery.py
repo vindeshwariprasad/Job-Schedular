@@ -1,13 +1,12 @@
 """Tests for scheduler orphan recovery and extended scheduling scenarios."""
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
-from db.models.schedule import Schedule, ScheduleStatus
 from db.models.execution import Execution, ExecutionStatus
 from db.models.job import Job
-
+from db.models.schedule import Schedule, ScheduleStatus
 
 REDIS_PATCH = "scheduler.scheduler.redis_client"
 
@@ -32,7 +31,7 @@ class TestRecoverOrphanedExecutions:
     def test_recovers_stuck_running(self, db, fake_redis):
         """RUNNING executions older than VISIBILITY_TIMEOUT should be reset to PENDING."""
         job = self._create_job(db)
-        cutoff = datetime.now(timezone.utc) - timedelta(seconds=60)
+        cutoff = datetime.now(UTC) - timedelta(seconds=60)
         execution = Execution(
             job_id=job.id,
             execution_id="stuck-running-001",
@@ -60,7 +59,7 @@ class TestRecoverOrphanedExecutions:
             execution_id="recent-running-001",
             status=ExecutionStatus.RUNNING,
             attempt=1,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         db.add(execution)
         db.commit()
@@ -77,7 +76,7 @@ class TestRecoverOrphanedExecutions:
     def test_recovers_orphaned_pending(self, db, fake_redis):
         """PENDING executions not in any Redis queue should be re-enqueued."""
         job = self._create_job(db)
-        old_time = datetime.now(timezone.utc) - timedelta(seconds=60)
+        old_time = datetime.now(UTC) - timedelta(seconds=60)
         execution = Execution(
             job_id=job.id,
             execution_id="orphan-pending-001",
@@ -98,7 +97,7 @@ class TestRecoverOrphanedExecutions:
     def test_skips_already_queued_pending(self, db, fake_redis):
         """PENDING executions already in Redis should NOT be re-enqueued."""
         job = self._create_job(db)
-        old_time = datetime.now(timezone.utc) - timedelta(seconds=60)
+        old_time = datetime.now(UTC) - timedelta(seconds=60)
         execution = Execution(
             job_id=job.id,
             execution_id="already-queued-001",
@@ -131,8 +130,8 @@ class TestRecoverOrphanedExecutions:
             execution_id="success-001",
             status=ExecutionStatus.SUCCESS,
             attempt=1,
-            started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
-            finished_at=datetime.now(timezone.utc) - timedelta(minutes=4),
+            started_at=datetime.now(UTC) - timedelta(minutes=5),
+            finished_at=datetime.now(UTC) - timedelta(minutes=4),
         )
         db.add(execution)
         db.commit()
@@ -169,7 +168,7 @@ class TestRunSchedulerOnceExtended:
             schedule = Schedule(
                 job_id=job.id,
                 cron_expression="*/5 * * * *",
-                next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                next_run_at=datetime.now(UTC) - timedelta(minutes=1),
                 status=ScheduleStatus.ACTIVE,
                 run_count=0,
             )
@@ -191,7 +190,7 @@ class TestRunSchedulerOnceExtended:
             schedule = Schedule(
                 job_id=job.id,
                 cron_expression="*/5 * * * *",
-                next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+                next_run_at=datetime.now(UTC) - timedelta(minutes=1),
                 status=ScheduleStatus.ACTIVE,
                 run_count=0,
             )
@@ -210,7 +209,7 @@ class TestRunSchedulerOnceExtended:
         schedule = Schedule(
             job_id=job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.COMPLETED,
             run_count=5,
             max_runs=5,
@@ -230,7 +229,7 @@ class TestRunSchedulerOnceExtended:
         schedule = Schedule(
             job_id=job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.ACTIVE,
             run_count=0,
         )
@@ -250,7 +249,7 @@ class TestRunSchedulerOnceExtended:
         schedule = Schedule(
             job_id=job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.ACTIVE,
             run_count=0,
         )
@@ -270,7 +269,7 @@ class TestRunSchedulerOnceExtended:
         schedule = Schedule(
             job_id=job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.ACTIVE,
             run_count=0,
         )
@@ -301,7 +300,7 @@ class TestRunSchedulerOnceExtended:
         schedule = Schedule(
             job_id=job.id,
             cron_expression="*/5 * * * *",
-            next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            next_run_at=datetime.now(UTC) - timedelta(minutes=1),
             status=ScheduleStatus.ACTIVE,
             max_runs=None,
             run_count=100,

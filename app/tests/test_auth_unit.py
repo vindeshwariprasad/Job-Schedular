@@ -1,22 +1,21 @@
 """Comprehensive unit tests for auth.py: password hashing, JWT tokens, user retrieval."""
 
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from datetime import datetime, timedelta, timezone
-from jose import jwt
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock
 
+import pytest
 from auth import (
+    ACCESS_TOKEN_EXPIRE_HOURS,
+    ALGORITHM,
+    SECRET_KEY,
+    create_access_token,
+    decode_token,
+    get_current_user,
     hash_password,
     verify_password,
-    create_access_token,
-    get_current_user,
-    decode_token,
-    SECRET_KEY,
-    ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_HOURS,
 )
 from db.models.user import User
-
+from jose import jwt
 
 # ── Password Hashing ──────────────────────────────
 
@@ -90,15 +89,15 @@ class TestCreateAccessToken:
     def test_exp_is_future(self):
         token = create_access_token({"sub": "1"})
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
-        now = datetime.now(timezone.utc)
+        exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
+        now = datetime.now(UTC)
         assert exp > now
 
     def test_exp_approximately_24_hours(self):
         token = create_access_token({"sub": "1"})
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
-        now = datetime.now(timezone.utc)
+        exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
+        now = datetime.now(UTC)
         diff = exp - now
         assert timedelta(hours=23) < diff < timedelta(hours=25)
 
@@ -126,7 +125,7 @@ class TestDecodeToken:
 
     def test_expired_token_returns_none(self):
         expired = jwt.encode(
-            {"sub": "1", "exp": datetime.now(timezone.utc) - timedelta(hours=1)},
+            {"sub": "1", "exp": datetime.now(UTC) - timedelta(hours=1)},
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
@@ -134,7 +133,7 @@ class TestDecodeToken:
 
     def test_missing_sub_returns_none(self):
         token = jwt.encode(
-            {"exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+            {"exp": datetime.now(UTC) + timedelta(hours=1)},
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
@@ -142,7 +141,7 @@ class TestDecodeToken:
 
     def test_wrong_secret_returns_none(self):
         token = jwt.encode(
-            {"sub": "1", "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+            {"sub": "1", "exp": datetime.now(UTC) + timedelta(hours=1)},
             "wrong-secret-key",
             algorithm=ALGORITHM,
         )
@@ -150,7 +149,7 @@ class TestDecodeToken:
 
     def test_non_integer_sub_returns_none(self):
         token = jwt.encode(
-            {"sub": "not-a-number", "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+            {"sub": "not-a-number", "exp": datetime.now(UTC) + timedelta(hours=1)},
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
@@ -194,7 +193,7 @@ class TestGetCurrentUser:
     async def test_expired_token_raises_401(self, async_db):
         from fastapi import HTTPException
         expired = jwt.encode(
-            {"sub": "1", "exp": datetime.now(timezone.utc) - timedelta(hours=1)},
+            {"sub": "1", "exp": datetime.now(UTC) - timedelta(hours=1)},
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
@@ -208,7 +207,7 @@ class TestGetCurrentUser:
     async def test_missing_sub_raises_401(self, async_db):
         from fastapi import HTTPException
         token = jwt.encode(
-            {"exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+            {"exp": datetime.now(UTC) + timedelta(hours=1)},
             SECRET_KEY,
             algorithm=ALGORITHM,
         )
@@ -234,7 +233,7 @@ class TestGetCurrentUser:
     async def test_non_integer_sub_raises_401(self, async_db):
         from fastapi import HTTPException
         token = jwt.encode(
-            {"sub": "not-a-number", "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+            {"sub": "not-a-number", "exp": datetime.now(UTC) + timedelta(hours=1)},
             SECRET_KEY,
             algorithm=ALGORITHM,
         )

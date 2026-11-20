@@ -1,6 +1,8 @@
 import time
 import uuid
+
 from redis import Redis
+
 
 def is_rate_limited(
     redis: Redis,

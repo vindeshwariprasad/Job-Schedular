@@ -1,9 +1,10 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
-import os
-from dotenv import load_dotenv
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 env_path = BASE_DIR / ".env"

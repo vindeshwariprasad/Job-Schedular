@@ -1,13 +1,11 @@
 """Tests for worker retry logic, DLQ flow, and execution processing."""
 
 import json
-from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import patch
 
-from db.models.job import Job
-from db.models.execution import Execution, ExecutionStatus
-from db.models.retry_policy import RetryPolicy
 from db.models.dead_letter import DeadLetterJob
+from db.models.execution import Execution, ExecutionStatus
 from worker.worker import handle_failure, process_execution
 
 
@@ -20,7 +18,7 @@ class TestHandleFailure:
             execution_id="test-exec-001",
             status=ExecutionStatus.RUNNING,
             attempt=attempt,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         db.add(ex)
         db.commit()
@@ -87,7 +85,7 @@ class TestProcessExecution:
             execution_id="already-running",
             status=ExecutionStatus.RUNNING,
             attempt=1,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         db.add(ex)
         db.commit()

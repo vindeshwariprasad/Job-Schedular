@@ -1,9 +1,8 @@
 """Comprehensive tests for WebSocket connection manager."""
 
-import pytest
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
+import pytest
 from websocket.connection_manager import ConnectionManager
 
 
