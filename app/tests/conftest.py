@@ -80,6 +80,8 @@ class FakeRedis:
 
     def __init__(self):
         self._lists: dict[str, list] = {}
+        self._strings: dict[str, str] = {}
+        self._hashes: dict[str, dict[str, str]] = {}
         self._sorted_sets: dict[str, dict] = {}
         self._expiry: dict[str, int] = {}
         self._pubsub_messages: list = []
@@ -122,6 +124,63 @@ class FakeRedis:
         dst_list = self._lists.setdefault(dst, [])
         dst_list.insert(0, item)
         return item
+
+    # --- String operations (for leader election / circuit breaker) ---
+    def set(self, key, value, nx=False, xx=False, ex=None):
+        if nx and key in self._strings:
+            return None
+        if xx and key not in self._strings:
+            return None
+        self._strings[key] = value
+        if ex is not None:
+            self._expiry[key] = ex
+        return True
+
+    def get(self, key):
+        return self._strings.get(key)
+
+    def delete(self, *keys):
+        count = 0
+        for key in keys:
+            if key in self._strings:
+                del self._strings[key]
+                count += 1
+            if key in self._hashes:
+                del self._hashes[key]
+                count += 1
+        return count
+
+    # --- Hash operations (for circuit breaker) ---
+    def hset(self, key, field=None, value=None, mapping=None):
+        h = self._hashes.setdefault(key, {})
+        if mapping:
+            h.update({str(k): str(v) for k, v in mapping.items()})
+            return len(mapping)
+        h[str(field)] = str(value)
+        return 1
+
+    def hget(self, key, field):
+        h = self._hashes.get(key, {})
+        return h.get(str(field))
+
+    def hgetall(self, key):
+        return dict(self._hashes.get(key, {}))
+
+    def hincrby(self, key, field, amount=1):
+        h = self._hashes.setdefault(key, {})
+        field = str(field)
+        current = int(h.get(field, "0"))
+        h[field] = str(current + amount)
+        return current + amount
+
+    def hdel(self, key, *fields):
+        h = self._hashes.get(key, {})
+        count = 0
+        for f in fields:
+            if str(f) in h:
+                del h[str(f)]
+                count += 1
+        return count
 
     # --- Sorted set operations (for rate limiter) ---
     def pipeline(self):

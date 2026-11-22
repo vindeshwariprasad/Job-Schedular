@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 
 from config import (
     BASE_RETRY_DELAY,
+    CIRCUIT_MAX_OPEN_RETRIES,
     JOB_EXECUTION_TIMEOUT,
     MAX_RETRIES,
     MAX_WORKERS,
@@ -40,6 +41,7 @@ from queues.rate_limiter import is_rate_limited
 from queues.redis_client import redis_client
 from redis import Redis
 from sqlalchemy.orm import Session
+from worker.circuit_breaker import CircuitOpenError
 from worker.executor import execute_job
 
 logger = get_logger("worker")
@@ -293,6 +295,73 @@ def handle_failure(
     max_retries: int,
     base_delay: int,
 ) -> None:
+    # ----------------------------
+    # Circuit breaker open — re-enqueue without consuming retry budget
+    # ----------------------------
+    if isinstance(error, CircuitOpenError):
+        # Track how many times we've been blocked by an open circuit
+        circuit_retries = 0
+        if execution.error and "circuit_retries=" in execution.error:
+            raw = execution.error.split("circuit_retries=")[1]
+            # Strip trailing non-digit characters like ')'
+            digits = "".join(c for c in raw if c.isdigit())
+            circuit_retries = int(digits) if digits else 0
+        circuit_retries += 1
+
+        if circuit_retries > CIRCUIT_MAX_OPEN_RETRIES:
+            # Exhausted circuit-open retries — send to DLQ
+            execution.attempt += 1
+            execution.error = f"Circuit open for {error.endpoint} after {circuit_retries} attempts"
+            execution.status = ExecutionStatus.FAILED
+            db.commit()
+            _publish_update(redis, execution, job)
+
+            dlq = DeadLetterJob(
+                job_id=execution.job_id,
+                execution_id=execution.execution_id,
+                payload={
+                    "job_id": execution.job_id,
+                    "execution_id": execution.execution_id,
+                },
+                error=execution.error,
+            )
+            db.add(dlq)
+            db.commit()
+            redis.lpush(QUEUE_FAILED, execution.execution_id)
+
+            job_failure_total.inc()
+            job_dlq_total.inc()
+            running_executions.dec()
+
+            logger.warning(
+                "Execution moved to DLQ: circuit open after %d retries",
+                circuit_retries,
+                extra={"execution_id": execution.execution_id, "job_id": execution.job_id},
+            )
+            return
+
+        # Re-enqueue without incrementing attempt
+        execution.error = f"Circuit open for {error.endpoint} (circuit_retries={circuit_retries})"
+        execution.status = ExecutionStatus.PENDING
+        db.commit()
+        _publish_update(redis, execution, job)
+        running_executions.dec()
+
+        logger.info(
+            "Circuit open, re-enqueuing (circuit_retry %d/%d)",
+            circuit_retries, CIRCUIT_MAX_OPEN_RETRIES,
+            extra={"execution_id": execution.execution_id, "job_id": execution.job_id},
+        )
+
+        redis.lpush(
+            QUEUE_READY,
+            json.dumps({
+                "execution_id": execution.execution_id,
+                "job_id": execution.job_id,
+            }),
+        )
+        return
+
     execution.attempt += 1
     execution.error = str(error)
 

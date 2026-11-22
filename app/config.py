@@ -7,3 +7,9 @@ RATE_LIMIT_WINDOW: int = int(os.getenv("RATE_LIMIT_WINDOW", 60))
 BASE_RETRY_DELAY: int = int(os.getenv("BASE_RETRY_DELAY", 2))
 JOB_EXECUTION_TIMEOUT: int = int(os.getenv("JOB_EXECUTION_TIMEOUT", 120))
 MAX_WORKERS: int = int(os.getenv("MAX_WORKERS", 10))
+
+# Circuit breaker
+CIRCUIT_FAILURE_THRESHOLD: int = int(os.getenv("CIRCUIT_FAILURE_THRESHOLD", 5))
+CIRCUIT_COOLDOWN_SECONDS: int = int(os.getenv("CIRCUIT_COOLDOWN_SECONDS", 30))
+CIRCUIT_STATE_TTL: int = int(os.getenv("CIRCUIT_STATE_TTL", 3600))
+CIRCUIT_MAX_OPEN_RETRIES: int = int(os.getenv("CIRCUIT_MAX_OPEN_RETRIES", 10))

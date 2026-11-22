@@ -52,6 +52,15 @@ class TestExecuteJobRouting:
 
 
 class TestApiCallExecutor:
+    """Tests for _execute_api_call with circuit breaker integration."""
+
+    def _patch_circuit(self):
+        """Patch CircuitBreaker to a no-op for HTTP-focused tests."""
+        mock_cb = MagicMock()
+        mock_cb.return_value.check = MagicMock()
+        mock_cb.return_value.record_success = MagicMock()
+        mock_cb.return_value.record_failure = MagicMock()
+        return patch("worker.executor.CircuitBreaker", mock_cb)
 
     def test_successful_get(self):
         """A 200 response should return status_code and body."""
@@ -60,7 +69,8 @@ class TestApiCallExecutor:
         mock_response.status_code = 200
         mock_response.text = '{"data": "ok"}'
 
-        with patch("worker.executor.httpx.Client") as MockClient:
+        with self._patch_circuit(), \
+             patch("worker.executor.httpx.Client") as MockClient:
             MockClient.return_value.__enter__ = MagicMock(return_value=MagicMock(
                 request=MagicMock(return_value=mock_response)
             ))
@@ -70,19 +80,81 @@ class TestApiCallExecutor:
         assert result["status_code"] == 200
 
     def test_4xx_raises(self):
-        """A 4xx response should raise RuntimeError."""
+        """A 4xx response should raise RuntimeError but NOT trigger circuit breaker."""
         job = _make_job("api_call", {"url": "https://example.com"})
         mock_response = MagicMock()
         mock_response.status_code = 404
         mock_response.text = "Not Found"
 
-        with patch("worker.executor.httpx.Client") as MockClient:
+        with self._patch_circuit() as mock_cb_patch, \
+             patch("worker.executor.httpx.Client") as MockClient:
             MockClient.return_value.__enter__ = MagicMock(return_value=MagicMock(
                 request=MagicMock(return_value=mock_response)
             ))
             MockClient.return_value.__exit__ = MagicMock(return_value=False)
             with pytest.raises(RuntimeError, match="API call failed: 404"):
                 _execute_api_call(job)
+            # 4xx should NOT record a circuit breaker failure
+            mock_cb_patch.return_value.record_failure.assert_not_called()
+
+    def test_5xx_records_circuit_failure(self):
+        """A 5xx response should record a circuit breaker failure."""
+        job = _make_job("api_call", {"url": "https://example.com"})
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_response.text = "Service Unavailable"
+
+        with self._patch_circuit() as mock_cb_patch, \
+             patch("worker.executor.httpx.Client") as MockClient:
+            MockClient.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                request=MagicMock(return_value=mock_response)
+            ))
+            MockClient.return_value.__exit__ = MagicMock(return_value=False)
+            with pytest.raises(RuntimeError, match="API call failed: 503"):
+                _execute_api_call(job)
+            mock_cb_patch.return_value.record_failure.assert_called_once()
+
+    def test_success_records_circuit_success(self):
+        """A successful response should record circuit breaker success."""
+        job = _make_job("api_call", {"url": "https://example.com", "method": "GET"})
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"ok": true}'
+
+        with self._patch_circuit() as mock_cb_patch, \
+             patch("worker.executor.httpx.Client") as MockClient:
+            MockClient.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                request=MagicMock(return_value=mock_response)
+            ))
+            MockClient.return_value.__exit__ = MagicMock(return_value=False)
+            _execute_api_call(job)
+            mock_cb_patch.return_value.record_success.assert_called_once()
+
+    def test_missing_url_raises(self):
+        """Missing URL should raise ValueError."""
+        job = _make_job("api_call", {"method": "GET"})
+        with pytest.raises(ValueError, match="non-empty 'url'"):
+            _execute_api_call(job)
+
+    def test_empty_url_raises(self):
+        """Empty URL should raise ValueError."""
+        job = _make_job("api_call", {"url": "", "method": "GET"})
+        with pytest.raises(ValueError, match="non-empty 'url'"):
+            _execute_api_call(job)
+
+    def test_connection_error_records_circuit_failure(self):
+        """Connection errors should record circuit breaker failure."""
+        job = _make_job("api_call", {"url": "https://example.com"})
+
+        with self._patch_circuit() as mock_cb_patch, \
+             patch("worker.executor.httpx.Client") as MockClient:
+            MockClient.return_value.__enter__ = MagicMock(return_value=MagicMock(
+                request=MagicMock(side_effect=__import__("httpx").ConnectError("refused"))
+            ))
+            MockClient.return_value.__exit__ = MagicMock(return_value=False)
+            with pytest.raises(RuntimeError, match="Connection failed"):
+                _execute_api_call(job)
+            mock_cb_patch.return_value.record_failure.assert_called_once()
 
 
 class TestStringExecutor:

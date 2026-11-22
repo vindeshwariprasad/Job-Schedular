@@ -2,6 +2,10 @@
 
 from config import (
     BASE_RETRY_DELAY,
+    CIRCUIT_COOLDOWN_SECONDS,
+    CIRCUIT_FAILURE_THRESHOLD,
+    CIRCUIT_MAX_OPEN_RETRIES,
+    CIRCUIT_STATE_TTL,
     JOB_EXECUTION_TIMEOUT,
     MAX_RETRIES,
     RATE_LIMIT_WINDOW,
@@ -34,6 +38,19 @@ class TestConfig:
     def test_job_execution_timeout_default(self):
         assert JOB_EXECUTION_TIMEOUT == 120
 
+    # Circuit breaker config defaults
+    def test_circuit_failure_threshold_default(self):
+        assert CIRCUIT_FAILURE_THRESHOLD == 5
+
+    def test_circuit_cooldown_seconds_default(self):
+        assert CIRCUIT_COOLDOWN_SECONDS == 30
+
+    def test_circuit_state_ttl_default(self):
+        assert CIRCUIT_STATE_TTL == 3600
+
+    def test_circuit_max_open_retries_default(self):
+        assert CIRCUIT_MAX_OPEN_RETRIES == 10
+
     def test_all_positive(self):
         assert MAX_RETRIES > 0
         assert VISIBILITY_TIMEOUT > 0
@@ -41,6 +58,10 @@ class TestConfig:
         assert RATE_LIMIT_WINDOW > 0
         assert BASE_RETRY_DELAY > 0
         assert JOB_EXECUTION_TIMEOUT > 0
+        assert CIRCUIT_FAILURE_THRESHOLD > 0
+        assert CIRCUIT_COOLDOWN_SECONDS > 0
+        assert CIRCUIT_STATE_TTL > 0
+        assert CIRCUIT_MAX_OPEN_RETRIES > 0
 
 
 class TestConstants:

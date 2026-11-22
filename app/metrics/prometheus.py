@@ -73,4 +73,31 @@ auth_redis_failures_total = Counter(
     "Auth rate-limit checks that failed due to Redis unavailability",
 )
 
+# -----------------------------
+# Scheduler Leader Election
+# -----------------------------
+scheduler_is_leader = Gauge(
+    "scheduler_is_leader",
+    "Whether this scheduler instance is the active leader (1 = leader, 0 = standby)",
+)
+
+# -----------------------------
+# Circuit Breaker
+# -----------------------------
+circuit_breaker_state = Gauge(
+    "circuit_breaker_state",
+    "Circuit breaker state per endpoint (0=CLOSED, 1=OPEN, 2=HALF_OPEN)",
+    ["endpoint"],
+)
+
+circuit_breaker_trips_total = Counter(
+    "circuit_breaker_trips_total",
+    "Total number of times a circuit breaker has tripped open",
+)
+
+circuit_breaker_rejections_total = Counter(
+    "circuit_breaker_rejections_total",
+    "Total number of requests rejected by an open circuit breaker",
+)
+
 

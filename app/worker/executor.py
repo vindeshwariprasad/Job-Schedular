@@ -1,20 +1,14 @@
 import math
+from urllib.parse import urlparse
 
 import httpx
 from db.models.job import Job
 from logging_config import get_logger
+from queues.redis_client import redis_client
 from simpleeval import FeatureNotAvailable, NumberTooHigh, SimpleEval
+from worker.circuit_breaker import CircuitBreaker
 
 logger = get_logger("worker.executor")
-
-# Reliable dummy API endpoints used for all api_call jobs.
-# Maps HTTP methods to safe, always-available endpoints.
-DUMMY_ENDPOINTS = {
-    "GET": "https://dummyjson.com/posts",
-    "POST": "https://dummyjson.com/posts/add",
-    "PUT": "https://dummyjson.com/posts/1",
-    "DELETE": "https://dummyjson.com/posts/1",
-}
 
 # ─── Safe Math Evaluator ─────────────────────────
 MAX_EXPRESSION_LENGTH = 500
@@ -52,7 +46,7 @@ def _execute_api_call(job: Job) -> dict:
 
     Expected payload:
         {
-            "url": "https://example.com/api",
+            "url": "https://httpbin.org/get",
             "method": "GET" | "POST" | "PUT" | "DELETE",
             "headers": {"Authorization": "Bearer ..."},  # optional
             "body": {"key": "value"},                     # optional
@@ -60,48 +54,71 @@ def _execute_api_call(job: Job) -> dict:
         }
     """
     payload = job.payload
+    url = payload.get("url", "")
     method = payload.get("method", "GET").upper()
+    headers = payload.get("headers", {})
     body = payload.get("body")
     timeout = payload.get("timeout", 30)
 
-    # Always route through dummy API to avoid 403s from real sites
-    original_url = payload.get("url", "")
-    url = DUMMY_ENDPOINTS.get(method, DUMMY_ENDPOINTS["GET"])
+    if not url:
+        raise ValueError("api_call payload must contain a non-empty 'url' field")
+
+    # Extract domain for circuit breaker
+    parsed = urlparse(url)
+    endpoint = parsed.netloc or url
+
+    # Circuit breaker check (raises CircuitOpenError if open)
+    circuit = CircuitBreaker(endpoint, redis_client)
+    circuit.check()
 
     logger.info(
-        "Routing %s %s -> %s", method, original_url, url,
+        "Executing %s %s", method, url,
         extra={"job_id": job.id},
     )
+
+    # Default headers
+    request_headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "JobScheduler/1.0",
+    }
+    request_headers.update(headers)
 
     # For POST/PUT, provide a sample body if none given
     if method in ("POST", "PUT") and not body:
         body = {"title": f"Job {job.id} execution", "userId": 1}
 
-    # Use clean headers for the dummy API (ignore user-supplied headers
-    # that may contain auth tokens rejected by dummyjson)
-    clean_headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "JobScheduler/1.0",
-    }
-
-    with httpx.Client(timeout=timeout) as client:
-        response = client.request(
-            method=method,
-            url=url,
-            headers=clean_headers,
-            json=body if body else None,
-        )
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.request(
+                method=method,
+                url=url,
+                headers=request_headers,
+                json=body if body else None,
+            )
+    except (httpx.ConnectError, httpx.TimeoutException) as e:
+        circuit.record_failure()
+        raise RuntimeError(f"Connection failed for {url}: {e}") from e
 
     logger.info(
         "API call completed, status=%d", response.status_code,
         extra={"job_id": job.id},
     )
 
-    if response.status_code >= 400:
+    if response.status_code >= 500:
+        # Server error — record as circuit breaker failure
+        circuit.record_failure()
         raise RuntimeError(
             f"API call failed: {response.status_code} {response.text[:500]}"
         )
 
+    if response.status_code >= 400:
+        # Client error (4xx) — NOT a circuit breaker failure
+        raise RuntimeError(
+            f"API call failed: {response.status_code} {response.text[:500]}"
+        )
+
+    # Success — reset circuit breaker
+    circuit.record_success()
     return {"status_code": response.status_code, "body": response.text[:1000]}
 
 

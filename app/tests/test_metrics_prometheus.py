@@ -2,6 +2,9 @@
 
 from metrics.prometheus import (
     auth_redis_failures_total,
+    circuit_breaker_rejections_total,
+    circuit_breaker_state,
+    circuit_breaker_trips_total,
     job_dlq_total,
     job_execution_duration,
     job_executions_total,
@@ -13,6 +16,7 @@ from metrics.prometheus import (
     queue_ready_size,
     redis_up,
     running_executions,
+    scheduler_is_leader,
 )
 from prometheus_client import Counter, Gauge, Histogram
 
@@ -125,4 +129,56 @@ class TestInfrastructureHealthMetrics:
         before = auth_redis_failures_total._value.get()
         auth_redis_failures_total.inc()
         after = auth_redis_failures_total._value.get()
+        assert after == before + 1
+
+
+class TestSchedulerLeaderMetrics:
+
+    def test_scheduler_is_leader_is_gauge(self):
+        assert isinstance(scheduler_is_leader, Gauge)
+
+    def test_scheduler_is_leader_name(self):
+        assert scheduler_is_leader._name == "scheduler_is_leader"
+
+    def test_scheduler_is_leader_set_values(self):
+        scheduler_is_leader.set(1)
+        assert scheduler_is_leader._value.get() == 1
+        scheduler_is_leader.set(0)
+        assert scheduler_is_leader._value.get() == 0
+
+
+class TestCircuitBreakerMetrics:
+
+    def test_circuit_breaker_state_is_gauge(self):
+        assert isinstance(circuit_breaker_state, Gauge)
+
+    def test_circuit_breaker_state_name(self):
+        assert circuit_breaker_state._name == "circuit_breaker_state"
+
+    def test_circuit_breaker_state_has_endpoint_label(self):
+        # Setting a labeled gauge should work without error
+        circuit_breaker_state.labels(endpoint="test.com").set(0)
+
+    def test_circuit_breaker_trips_total_is_counter(self):
+        assert isinstance(circuit_breaker_trips_total, Counter)
+
+    def test_circuit_breaker_trips_total_name(self):
+        assert "circuit_breaker_trips" in circuit_breaker_trips_total._name
+
+    def test_circuit_breaker_trips_total_increments(self):
+        before = circuit_breaker_trips_total._value.get()
+        circuit_breaker_trips_total.inc()
+        after = circuit_breaker_trips_total._value.get()
+        assert after == before + 1
+
+    def test_circuit_breaker_rejections_total_is_counter(self):
+        assert isinstance(circuit_breaker_rejections_total, Counter)
+
+    def test_circuit_breaker_rejections_total_name(self):
+        assert "circuit_breaker_rejections" in circuit_breaker_rejections_total._name
+
+    def test_circuit_breaker_rejections_total_increments(self):
+        before = circuit_breaker_rejections_total._value.get()
+        circuit_breaker_rejections_total.inc()
+        after = circuit_breaker_rejections_total._value.get()
         assert after == before + 1
