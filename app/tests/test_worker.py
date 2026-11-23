@@ -34,7 +34,7 @@ class TestHandleFailure:
         assert execution.attempt == 2
         assert execution.status == ExecutionStatus.PENDING
         assert execution.error == "boom"
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_moves_to_dlq_after_max_retries(self, db, sample_job, fake_redis):
         """When attempts exceed max_retries, execution goes to DLQ."""
@@ -53,14 +53,14 @@ class TestHandleFailure:
 
         # Should be in failed queue, NOT ready queue
         assert fake_redis.llen("queue:failed") == 1
-        assert fake_redis.llen("queue:ready") == 0
+        assert fake_redis.llen("queue:ready:medium") == 0
 
     def test_retry_re_enqueues_to_ready(self, db, sample_job, fake_redis):
         """Retried execution should land back in the ready queue with correct payload."""
         execution = self._make_execution(db, sample_job.id, attempt=1)
         handle_failure(db, fake_redis, execution, sample_job, RuntimeError("temp"), max_retries=3, base_delay=0)
 
-        items = fake_redis.lrange("queue:ready", 0, -1)
+        items = fake_redis.lrange("queue:ready:medium", 0, -1)
         assert len(items) == 1
         payload = json.loads(items[0])
         assert payload["execution_id"] == "test-exec-001"

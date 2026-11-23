@@ -39,7 +39,7 @@ class TestCircuitOpenHandleFailure:
         db.refresh(execution)
         assert execution.attempt == 1  # NOT incremented
         assert execution.status == ExecutionStatus.PENDING
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_re_enqueues_to_ready_queue(self, db, sample_job, fake_redis):
         """CircuitOpenError should re-enqueue the execution."""
@@ -51,7 +51,7 @@ class TestCircuitOpenHandleFailure:
             max_retries=3, base_delay=0,
         )
 
-        items = fake_redis.lrange("queue:ready", 0, -1)
+        items = fake_redis.lrange("queue:ready:medium", 0, -1)
         assert len(items) == 1
         payload = json.loads(items[0])
         assert payload["execution_id"] == "circuit-test-001"

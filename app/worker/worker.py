@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import signal
 import sys
 import threading
@@ -18,7 +19,14 @@ from config import (
     RATE_LIMIT_WINDOW,
     WORKER_POLL_TIMEOUT,
 )
-from constants import QUEUE_FAILED, QUEUE_PROCESSING, QUEUE_READY
+from constants import (
+    QUEUE_FAILED,
+    QUEUE_PROCESSING,
+    QUEUE_READY_HIGH,
+    QUEUE_READY_LOW,
+    QUEUE_READY_MEDIUM,
+    queue_for_priority,
+)
 from db.models.dead_letter import DeadLetterJob
 from db.models.execution import Execution, ExecutionStatus
 from db.models.job import Job
@@ -34,6 +42,7 @@ from metrics.prometheus import (
     job_success_total,
     queue_failed_size,
     queue_processing_size,
+    queue_ready_priority_size,
     queue_ready_size,
     running_executions,
 )
@@ -87,9 +96,36 @@ if sys.platform != "win32":
 # Queue metrics updater
 # ----------------------------
 def update_queue_metrics(redis: Redis) -> None:
-    queue_ready_size.set(redis.llen(QUEUE_READY))
+    high = redis.llen(QUEUE_READY_HIGH)
+    med = redis.llen(QUEUE_READY_MEDIUM)
+    low = redis.llen(QUEUE_READY_LOW)
+
+    queue_ready_size.set(high + med + low)
+    queue_ready_priority_size.labels(priority="high").set(high)
+    queue_ready_priority_size.labels(priority="medium").set(med)
+    queue_ready_priority_size.labels(priority="low").set(low)
+
     queue_processing_size.set(redis.llen(QUEUE_PROCESSING))
     queue_failed_size.set(redis.llen(QUEUE_FAILED))
+
+
+# ----------------------------
+# Weighted priority queue selection
+# ----------------------------
+def _pick_queue_order() -> list[str]:
+    """Return queue poll order based on weighted random selection.
+
+    60% chance: HIGH first, then MEDIUM, then LOW
+    30% chance: MEDIUM first, then HIGH, then LOW
+    10% chance: LOW first, then HIGH, then MEDIUM
+    """
+    roll = random.random()
+    if roll < 0.6:
+        return [QUEUE_READY_HIGH, QUEUE_READY_MEDIUM, QUEUE_READY_LOW]
+    elif roll < 0.9:
+        return [QUEUE_READY_MEDIUM, QUEUE_READY_HIGH, QUEUE_READY_LOW]
+    else:
+        return [QUEUE_READY_LOW, QUEUE_READY_HIGH, QUEUE_READY_MEDIUM]
 
 
 # ----------------------------
@@ -112,8 +148,8 @@ def handle_task(task: str | bytes) -> None:
                 "Worker error: %s", e,
                 extra={"execution_id": execution_id},
             )
-            # Push back to ready queue so it can be retried
-            redis_client.lpush(QUEUE_READY, task)
+            # Push back to medium queue as safe default (no DB lookup on error path)
+            redis_client.lpush(QUEUE_READY_MEDIUM, task)
         finally:
             # Always remove from processing queue (either succeeded or re-enqueued)
             redis_client.lrem(QUEUE_PROCESSING, 1, task)
@@ -141,13 +177,19 @@ def worker_loop(redis: Redis) -> None:
             time.sleep(0.1)
             continue
 
-        task = redis.brpoplpush(
-            QUEUE_READY,
-            QUEUE_PROCESSING,
-            timeout=WORKER_POLL_TIMEOUT,
-        )
+        # Try queues in weighted priority order (non-blocking)
+        task = None
+        for queue in _pick_queue_order():
+            task = redis.brpoplpush(
+                queue,
+                QUEUE_PROCESSING,
+                timeout=0,
+            )
+            if task:
+                break
 
         if not task:
+            time.sleep(WORKER_POLL_TIMEOUT)
             continue
 
         future = executor.submit(handle_task, task)
@@ -204,7 +246,7 @@ def process_execution(db: Session, redis: Redis, execution_id: str) -> None:
         db.commit()
 
         redis.lpush(
-            QUEUE_READY,
+            queue_for_priority(job.priority),
             json.dumps({
                 "execution_id": execution.execution_id,
                 "job_id": job.id,
@@ -295,6 +337,8 @@ def handle_failure(
     max_retries: int,
     base_delay: int,
 ) -> None:
+    target_queue = queue_for_priority(job.priority)
+
     # ----------------------------
     # Circuit breaker open — re-enqueue without consuming retry budget
     # ----------------------------
@@ -354,7 +398,7 @@ def handle_failure(
         )
 
         redis.lpush(
-            QUEUE_READY,
+            target_queue,
             json.dumps({
                 "execution_id": execution.execution_id,
                 "job_id": execution.job_id,
@@ -413,7 +457,7 @@ def handle_failure(
     time.sleep(base_delay * (2 ** (execution.attempt - 1)))
 
     redis.lpush(
-        QUEUE_READY,
+        target_queue,
         json.dumps({
             "execution_id": execution.execution_id,
             "job_id": execution.job_id,

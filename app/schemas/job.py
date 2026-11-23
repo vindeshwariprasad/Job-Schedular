@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ALLOWED_TASK_TYPES = {"api_call", "string_manipulation", "math"}
 ALLOWED_METHODS = {"GET", "POST", "PUT", "DELETE"}
+ALLOWED_PRIORITIES = {"HIGH", "MEDIUM", "LOW"}
 _SAFE_STRING_RE = re.compile(r"^[a-zA-Z\s]+$")
 _SAFE_MATH_RE = re.compile(r"^[\d\s\+\-\*/\(\)\.]+$")
 
@@ -12,10 +13,16 @@ class JobCreate(BaseModel):
     name: str = Field(..., min_length=1)
     task_type: str = Field(..., examples=["api_call", "string_manipulation", "math"])
     payload: dict
+    priority: str = Field(default="MEDIUM", examples=["HIGH", "MEDIUM", "LOW"])
     rate_limit_per_min: int = Field(default=60, ge=1)
 
     @model_validator(mode="after")
     def validate_payload_for_task_type(self):
+        if self.priority not in ALLOWED_PRIORITIES:
+            raise ValueError(
+                f"Invalid priority '{self.priority}'. Must be one of: {', '.join(sorted(ALLOWED_PRIORITIES))}"
+            )
+
         if self.task_type not in ALLOWED_TASK_TYPES:
             raise ValueError(
                 f"Invalid task_type '{self.task_type}'. Must be one of: {', '.join(sorted(ALLOWED_TASK_TYPES))}"
@@ -61,5 +68,6 @@ class JobResponse(BaseModel):
     name: str
     task_type: str
     payload: dict
+    priority: str
     rate_limit_per_min: int
     is_active: bool

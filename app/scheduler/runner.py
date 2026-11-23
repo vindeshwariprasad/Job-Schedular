@@ -4,9 +4,11 @@ import socket
 import sys
 import time
 
+from config import BACKPRESSURE_CRITICAL_THRESHOLD, BACKPRESSURE_WARN_THRESHOLD
+from constants import ALL_READY_QUEUES
 from db.session import SessionLocal
 from logging_config import get_logger
-from metrics.prometheus import scheduler_is_leader
+from metrics.prometheus import scheduler_backpressure_active, scheduler_is_leader
 from queues.redis_client import redis_client
 from scheduler.scheduler import recover_orphaned_executions, run_scheduler_once
 
@@ -61,6 +63,39 @@ def _release_lock(redis=None):
         logger.info("Leader lock released")
 
 
+def _check_backpressure(redis, backpressure_was_active: bool) -> tuple[bool, float | None]:
+    """Check queue depth and return (is_active, sleep_seconds_or_None).
+
+    Returns (True, sleep_seconds) if backpressure should throttle this cycle.
+    Returns (False, None) if the scheduler should proceed normally.
+    Logs only on state transitions (entering/exiting backpressure).
+    """
+    total_depth = sum(redis.llen(q) for q in ALL_READY_QUEUES)
+
+    if total_depth > BACKPRESSURE_CRITICAL_THRESHOLD:
+        if not backpressure_was_active:
+            logger.critical(
+                "Backpressure CRITICAL: queue depth %d exceeds %d, throttling scheduler",
+                total_depth, BACKPRESSURE_CRITICAL_THRESHOLD,
+            )
+        scheduler_backpressure_active.set(1)
+        return True, 30
+
+    if total_depth > BACKPRESSURE_WARN_THRESHOLD:
+        if not backpressure_was_active:
+            logger.warning(
+                "Backpressure WARNING: queue depth %d exceeds %d, throttling scheduler",
+                total_depth, BACKPRESSURE_WARN_THRESHOLD,
+            )
+        scheduler_backpressure_active.set(1)
+        return True, 5
+
+    if backpressure_was_active:
+        logger.info("Backpressure lifted: queue depth %d", total_depth)
+    scheduler_backpressure_active.set(0)
+    return False, None
+
+
 def start_scheduler(redis=None):
     r = redis or redis_client
 
@@ -91,6 +126,7 @@ def start_scheduler(redis=None):
 
         sleep_seconds = MIN_SLEEP
         last_recovery = time.monotonic()
+        backpressure_active = False
 
         while not SHUTDOWN:
             # Renew lock at the start of every iteration
@@ -98,6 +134,13 @@ def start_scheduler(redis=None):
                 logger.warning("Lost leader lock, returning to standby")
                 scheduler_is_leader.set(0)
                 break
+
+            # --- Backpressure gate ---
+            bp_active, bp_sleep = _check_backpressure(r, backpressure_active)
+            backpressure_active = bp_active
+            if bp_active:
+                time.sleep(bp_sleep)
+                continue
 
             db = SessionLocal()
             try:

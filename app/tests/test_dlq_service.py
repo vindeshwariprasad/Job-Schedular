@@ -42,7 +42,7 @@ class TestReplayDLQExecution:
         ).first()
         assert new_exec is not None
         assert new_exec.status == ExecutionStatus.PENDING
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     async def test_idempotency_blocks_duplicate_replay(self, db, sample_job, fake_redis):
         """If a PENDING execution already exists for the job, replay should be skipped."""
@@ -68,7 +68,7 @@ class TestReplayDLQExecution:
         assert result["new_execution_id"] == "already-in-flight"
         # No new execution should be created
         assert db.query(Execution).count() == 1
-        assert fake_redis.llen("queue:ready") == 0
+        assert fake_redis.llen("queue:ready:medium") == 0
 
     async def test_replay_not_found_raises(self, db, fake_redis):
         """Replaying a non-existent DLQ entry should raise ValueError."""

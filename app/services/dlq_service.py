@@ -1,8 +1,9 @@
 import json
 
-from constants import QUEUE_FAILED, QUEUE_READY
+from constants import QUEUE_FAILED, queue_for_priority
 from db.models.dead_letter import DeadLetterJob
 from db.models.execution import Execution, ExecutionStatus
+from db.models.job import Job
 from logging_config import get_logger
 from queues.redis_client import redis_client
 from sqlalchemy import select
@@ -45,6 +46,11 @@ async def replay_dlq_execution(db: AsyncSession, execution_id: str):
             "status": "already_in_flight",
         }
 
+    # Look up job priority for correct queue routing
+    result = await db.execute(select(Job).where(Job.id == dlq.job_id))
+    job = result.scalar_one_or_none()
+    target_queue = queue_for_priority(job.priority if job else "MEDIUM")
+
     new_execution_id = generate_execution_id()
 
     execution = Execution(
@@ -63,7 +69,7 @@ async def replay_dlq_execution(db: AsyncSession, execution_id: str):
         "job_id": dlq.job_id,
     })
 
-    redis_client.lpush(QUEUE_READY, payload)
+    redis_client.lpush(target_queue, payload)
     redis_client.lrem(QUEUE_FAILED, 0, execution_id)
 
     logger.info(

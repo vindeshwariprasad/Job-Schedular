@@ -30,6 +30,7 @@ vi.mock("../../api/jobs", () => ({
     payload: { url: "https://example.com", method: "GET" },
     rate_limit_per_min: 60,
     is_active: true,
+    priority: "HIGH",
   }),
   deleteJob: vi.fn().mockResolvedValue({ ok: true }),
 }));
@@ -80,6 +81,14 @@ describe("JobDetail Page", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Active")).toBeInTheDocument();
+    });
+  });
+
+  it("shows priority badge", async () => {
+    renderJobDetail();
+
+    await waitFor(() => {
+      expect(screen.getByText("HIGH")).toBeInTheDocument();
     });
   });
 

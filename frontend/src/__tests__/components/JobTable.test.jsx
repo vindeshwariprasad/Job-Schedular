@@ -11,8 +11,8 @@ vi.mock("react-router-dom", async () => {
 });
 
 const jobs = [
-  { id: 1, name: "API Health", task_type: "api_call", rate_limit_per_min: 60, is_active: true },
-  { id: 2, name: "String Job", task_type: "string_manipulation", rate_limit_per_min: 30, is_active: false },
+  { id: 1, name: "API Health", task_type: "api_call", rate_limit_per_min: 60, is_active: true, priority: "HIGH" },
+  { id: 2, name: "String Job", task_type: "string_manipulation", rate_limit_per_min: 30, is_active: false, priority: "LOW" },
 ];
 
 function renderTable(data = jobs) {
@@ -29,6 +29,7 @@ describe("JobTable", () => {
     expect(screen.getByText("ID")).toBeInTheDocument();
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Type")).toBeInTheDocument();
+    expect(screen.getByText("Priority")).toBeInTheDocument();
     expect(screen.getByText("Rate Limit / min")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
   });
@@ -37,6 +38,8 @@ describe("JobTable", () => {
     renderTable();
     expect(screen.getByText("API Health")).toBeInTheDocument();
     expect(screen.getByText("api_call")).toBeInTheDocument();
+    expect(screen.getByText("HIGH")).toBeInTheDocument();
+    expect(screen.getByText("LOW")).toBeInTheDocument();
     expect(screen.getByText("60")).toBeInTheDocument();
     expect(screen.getByText("Yes")).toBeInTheDocument();
     expect(screen.getByText("No")).toBeInTheDocument();

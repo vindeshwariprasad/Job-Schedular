@@ -70,6 +70,22 @@ export default function JobDetail() {
         <p className="text-gray-700 dark:text-gray-300"><strong className="text-gray-900 dark:text-white">Type:</strong> {job.task_type}</p>
         <p className="text-gray-700 dark:text-gray-300"><strong className="text-gray-900 dark:text-white">Rate limit:</strong> {job.rate_limit_per_min} / min</p>
         <p className="text-gray-700 dark:text-gray-300">
+          <strong className="text-gray-900 dark:text-white">Priority:</strong>{" "}
+          {(() => {
+            const p = job.priority ?? "MEDIUM";
+            const styles = {
+              HIGH: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+              MEDIUM: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+              LOW: "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+            };
+            return (
+              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[p] || styles.MEDIUM}`}>
+                {p}
+              </span>
+            );
+          })()}
+        </p>
+        <p className="text-gray-700 dark:text-gray-300">
           <strong className="text-gray-900 dark:text-white">Status:</strong>{" "}
           {job.is_active ? (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800">

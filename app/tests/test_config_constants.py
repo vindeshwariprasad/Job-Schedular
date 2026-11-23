@@ -1,6 +1,8 @@
 """Tests for config.py and constants.py."""
 
 from config import (
+    BACKPRESSURE_CRITICAL_THRESHOLD,
+    BACKPRESSURE_WARN_THRESHOLD,
     BASE_RETRY_DELAY,
     CIRCUIT_COOLDOWN_SECONDS,
     CIRCUIT_FAILURE_THRESHOLD,
@@ -12,7 +14,16 @@ from config import (
     VISIBILITY_TIMEOUT,
     WORKER_POLL_TIMEOUT,
 )
-from constants import QUEUE_FAILED, QUEUE_PROCESSING, QUEUE_READY
+from constants import (
+    ALL_READY_QUEUES,
+    QUEUE_FAILED,
+    QUEUE_PROCESSING,
+    QUEUE_READY_HIGH,
+    QUEUE_READY_LOW,
+    QUEUE_READY_MEDIUM,
+    VALID_PRIORITIES,
+    queue_for_priority,
+)
 
 
 class TestConfig:
@@ -51,6 +62,20 @@ class TestConfig:
     def test_circuit_max_open_retries_default(self):
         assert CIRCUIT_MAX_OPEN_RETRIES == 10
 
+    # Backpressure config defaults
+    def test_backpressure_warn_threshold_default(self):
+        assert BACKPRESSURE_WARN_THRESHOLD == 1000
+
+    def test_backpressure_critical_threshold_default(self):
+        assert BACKPRESSURE_CRITICAL_THRESHOLD == 5000
+
+    def test_backpressure_thresholds_are_ints(self):
+        assert isinstance(BACKPRESSURE_WARN_THRESHOLD, int)
+        assert isinstance(BACKPRESSURE_CRITICAL_THRESHOLD, int)
+
+    def test_backpressure_critical_greater_than_warn(self):
+        assert BACKPRESSURE_CRITICAL_THRESHOLD > BACKPRESSURE_WARN_THRESHOLD
+
     def test_all_positive(self):
         assert MAX_RETRIES > 0
         assert VISIBILITY_TIMEOUT > 0
@@ -62,12 +87,20 @@ class TestConfig:
         assert CIRCUIT_COOLDOWN_SECONDS > 0
         assert CIRCUIT_STATE_TTL > 0
         assert CIRCUIT_MAX_OPEN_RETRIES > 0
+        assert BACKPRESSURE_WARN_THRESHOLD > 0
+        assert BACKPRESSURE_CRITICAL_THRESHOLD > 0
 
 
 class TestConstants:
 
-    def test_queue_ready(self):
-        assert QUEUE_READY == "queue:ready"
+    def test_queue_ready_high(self):
+        assert QUEUE_READY_HIGH == "queue:ready:high"
+
+    def test_queue_ready_medium(self):
+        assert QUEUE_READY_MEDIUM == "queue:ready:medium"
+
+    def test_queue_ready_low(self):
+        assert QUEUE_READY_LOW == "queue:ready:low"
 
     def test_queue_processing(self):
         assert QUEUE_PROCESSING == "queue:processing"
@@ -75,12 +108,34 @@ class TestConstants:
     def test_queue_failed(self):
         assert QUEUE_FAILED == "queue:failed"
 
+    def test_all_ready_queues(self):
+        assert ALL_READY_QUEUES == [QUEUE_READY_HIGH, QUEUE_READY_MEDIUM, QUEUE_READY_LOW]
+
     def test_queue_names_are_strings(self):
-        assert isinstance(QUEUE_READY, str)
+        assert isinstance(QUEUE_READY_HIGH, str)
+        assert isinstance(QUEUE_READY_MEDIUM, str)
+        assert isinstance(QUEUE_READY_LOW, str)
         assert isinstance(QUEUE_PROCESSING, str)
         assert isinstance(QUEUE_FAILED, str)
 
     def test_queue_names_use_colon_namespace(self):
-        assert ":" in QUEUE_READY
+        assert ":" in QUEUE_READY_HIGH
+        assert ":" in QUEUE_READY_MEDIUM
+        assert ":" in QUEUE_READY_LOW
         assert ":" in QUEUE_PROCESSING
         assert ":" in QUEUE_FAILED
+
+    def test_valid_priorities(self):
+        assert VALID_PRIORITIES == {"HIGH", "MEDIUM", "LOW"}
+
+    def test_queue_for_priority_high(self):
+        assert queue_for_priority("HIGH") == QUEUE_READY_HIGH
+
+    def test_queue_for_priority_medium(self):
+        assert queue_for_priority("MEDIUM") == QUEUE_READY_MEDIUM
+
+    def test_queue_for_priority_low(self):
+        assert queue_for_priority("LOW") == QUEUE_READY_LOW
+
+    def test_queue_for_priority_unknown_defaults_medium(self):
+        assert queue_for_priority("UNKNOWN") == QUEUE_READY_MEDIUM

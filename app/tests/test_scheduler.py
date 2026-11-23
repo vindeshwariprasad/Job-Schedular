@@ -36,7 +36,7 @@ class TestRunSchedulerOnce:
         assert execution.status == ExecutionStatus.PENDING
 
         # Verify it was pushed to Redis
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_skips_paused_schedule(self, db, sample_job, fake_redis):
         """Paused schedules should not be picked up."""

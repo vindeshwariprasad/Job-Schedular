@@ -49,7 +49,7 @@ class TestRecoverOrphanedExecutions:
 
         db.refresh(execution)
         assert execution.status == ExecutionStatus.PENDING
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_does_not_recover_recent_running(self, db, fake_redis):
         """Recently started RUNNING executions should not be recovered."""
@@ -71,7 +71,7 @@ class TestRecoverOrphanedExecutions:
 
         db.refresh(execution)
         assert execution.status == ExecutionStatus.RUNNING
-        assert fake_redis.llen("queue:ready") == 0
+        assert fake_redis.llen("queue:ready:medium") == 0
 
     def test_recovers_orphaned_pending(self, db, fake_redis):
         """PENDING executions not in any Redis queue should be re-enqueued."""
@@ -92,7 +92,7 @@ class TestRecoverOrphanedExecutions:
             from scheduler.scheduler import recover_orphaned_executions
             recover_orphaned_executions(db)
 
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_skips_already_queued_pending(self, db, fake_redis):
         """PENDING executions already in Redis should NOT be re-enqueued."""
@@ -109,7 +109,7 @@ class TestRecoverOrphanedExecutions:
         db.commit()
 
         # Put it in Redis ready queue already
-        fake_redis.lpush("queue:ready", json.dumps({
+        fake_redis.lpush("queue:ready:medium", json.dumps({
             "execution_id": "already-queued-001",
             "job_id": job.id,
         }))
@@ -120,7 +120,7 @@ class TestRecoverOrphanedExecutions:
             recover_orphaned_executions(db)
 
         # Should still be just 1 (the original), not duplicated
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_does_not_recover_success_executions(self, db, fake_redis):
         """SUCCESS executions should never be recovered."""
@@ -141,7 +141,7 @@ class TestRecoverOrphanedExecutions:
             from scheduler.scheduler import recover_orphaned_executions
             recover_orphaned_executions(db)
 
-        assert fake_redis.llen("queue:ready") == 0
+        assert fake_redis.llen("queue:ready:medium") == 0
 
 
 class TestRunSchedulerOnceExtended:
@@ -180,7 +180,7 @@ class TestRunSchedulerOnceExtended:
             processed = run_scheduler_once(db)
 
         assert processed == 3
-        assert fake_redis.llen("queue:ready") == 3
+        assert fake_redis.llen("queue:ready:medium") == 3
         assert db.query(Execution).count() == 3
 
     def test_batch_size_limit(self, db, fake_redis):
@@ -280,7 +280,7 @@ class TestRunSchedulerOnceExtended:
             from scheduler.scheduler import run_scheduler_once
             run_scheduler_once(db)
 
-        items = fake_redis.lrange("queue:ready", 0, -1)
+        items = fake_redis.lrange("queue:ready:medium", 0, -1)
         payload = json.loads(items[0])
         assert "execution_id" in payload
         assert "job_id" in payload

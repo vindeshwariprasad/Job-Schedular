@@ -12,6 +12,7 @@ class Job(Base):
     name = Column(String(255), nullable=False)
     task_type = Column(String(50), nullable=False)  # api_call / script
     payload = Column(JSON, nullable=False)
+    priority = Column(String(10), nullable=False, default="MEDIUM", server_default="MEDIUM")
 
     rate_limit_per_min = Column(Integer, default=60)
     is_active = Column(Boolean, default=True)

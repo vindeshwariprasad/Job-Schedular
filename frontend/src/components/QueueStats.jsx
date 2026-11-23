@@ -47,25 +47,48 @@ export default function QueueStats({ stats }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <StatCard
-        title="Ready Queue"
-        value={stats.ready ?? 0}
-        color="text-blue-600"
-        hint="All users combined"
-      />
-      <StatCard
-        title="Processing Queue"
-        value={stats.processing ?? 0}
-        color="text-yellow-600"
-        hint="All users combined"
-      />
-      <StatCard
-        title="Failed Queue"
-        value={stats.failed ?? 0}
-        color="text-red-600"
-        hint="All users combined"
-      />
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard
+          title="Ready Queue"
+          value={stats.ready ?? 0}
+          color="text-blue-600"
+          hint="Total across all priority levels"
+        />
+        <StatCard
+          title="Processing Queue"
+          value={stats.processing ?? 0}
+          color="text-yellow-600"
+          hint="All users combined"
+        />
+        <StatCard
+          title="Failed Queue"
+          value={stats.failed ?? 0}
+          color="text-red-600"
+          hint="All users combined"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard
+          title="Ready — High"
+          value={stats.ready_high ?? 0}
+          color="text-red-600"
+          hint="High-priority jobs waiting"
+        />
+        <StatCard
+          title="Ready — Medium"
+          value={stats.ready_medium ?? 0}
+          color="text-yellow-600"
+          hint="Medium-priority jobs waiting"
+        />
+        <StatCard
+          title="Ready — Low"
+          value={stats.ready_low ?? 0}
+          color="text-gray-600"
+          hint="Low-priority jobs waiting"
+        />
+      </div>
     </div>
   );
 }

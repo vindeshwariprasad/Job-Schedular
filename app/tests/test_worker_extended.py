@@ -105,20 +105,24 @@ class TestUpdateQueueMetrics:
     """Tests for queue metrics updater."""
 
     def test_sets_queue_sizes(self, fake_redis):
-        fake_redis.lpush("queue:ready", "a", "b")
+        fake_redis.lpush("queue:ready:high", "x")
+        fake_redis.lpush("queue:ready:medium", "a", "b")
+        fake_redis.lpush("queue:ready:low", "y")
         fake_redis.lpush("queue:processing", "c")
         fake_redis.lpush("queue:failed", "d", "e", "f")
 
         with patch("worker.worker.queue_ready_size") as ready, \
+             patch("worker.worker.queue_ready_priority_size"), \
              patch("worker.worker.queue_processing_size") as processing, \
              patch("worker.worker.queue_failed_size") as failed:
             update_queue_metrics(fake_redis)
-            ready.set.assert_called_once_with(2)
+            ready.set.assert_called_once_with(4)  # 1 + 2 + 1
             processing.set.assert_called_once_with(1)
             failed.set.assert_called_once_with(3)
 
     def test_empty_queues(self, fake_redis):
         with patch("worker.worker.queue_ready_size") as ready, \
+             patch("worker.worker.queue_ready_priority_size"), \
              patch("worker.worker.queue_processing_size") as processing, \
              patch("worker.worker.queue_failed_size") as failed:
             update_queue_metrics(fake_redis)
@@ -151,7 +155,7 @@ class TestProcessExecutionExtended:
 
         db.refresh(ex)
         assert ex.status == ExecutionStatus.PENDING
-        assert fake_redis.llen("queue:ready") == 1
+        assert fake_redis.llen("queue:ready:medium") == 1
 
     def test_success_sets_finished_at(self, db, sample_job, fake_redis):
         """Successful execution should have finished_at set."""
@@ -297,7 +301,7 @@ class TestHandleFailureExtended:
 
         handle_failure(db, fake_redis, execution, sample_job, RuntimeError("temp"), max_retries=3, base_delay=0)
 
-        items = fake_redis.lrange("queue:ready", 0, -1)
+        items = fake_redis.lrange("queue:ready:medium", 0, -1)
         payload = json.loads(items[0])
         assert payload["execution_id"] == execution.execution_id
         assert payload["job_id"] == sample_job.id

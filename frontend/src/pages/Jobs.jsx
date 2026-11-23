@@ -15,6 +15,7 @@ const INITIAL_FORM = {
   input: "",
   expression: "",
   rate_limit_per_min: 60,
+  priority: "MEDIUM",
 };
 
 const inputClass =
@@ -64,6 +65,7 @@ export default function Jobs() {
       task_type: form.task_type,
       payload: buildPayload(),
       rate_limit_per_min: form.rate_limit_per_min,
+      priority: form.priority,
     });
     setForm(INITIAL_FORM);
   };
@@ -156,6 +158,16 @@ export default function Jobs() {
               })
             }
           />
+
+          <select
+            className={inputClass}
+            value={form.priority}
+            onChange={e => setForm({ ...form, priority: e.target.value })}
+          >
+            <option value="HIGH">High Priority</option>
+            <option value="MEDIUM">Medium Priority</option>
+            <option value="LOW">Low Priority</option>
+          </select>
 
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-2 font-medium transition-colors disabled:opacity-50"

@@ -48,6 +48,7 @@ async def create_job(
         name=payload.name,
         task_type=payload.task_type,
         payload=payload.payload,
+        priority=payload.priority,
         rate_limit_per_min=payload.rate_limit_per_min,
     )
 

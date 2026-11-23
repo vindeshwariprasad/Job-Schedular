@@ -21,7 +21,7 @@ vi.mock("../../api/auth", () => ({
 vi.mock("../../api/jobs", () => ({
   getJobs: vi.fn().mockResolvedValue({
     items: [
-      { id: 1, name: "Test Job", task_type: "api_call", rate_limit_per_min: 60, is_active: true },
+      { id: 1, name: "Test Job", task_type: "api_call", rate_limit_per_min: 60, is_active: true, priority: "MEDIUM" },
     ],
     total: 1,
   }),
@@ -95,6 +95,13 @@ describe("Jobs Page", () => {
   it("renders rate limit input with default value 60", () => {
     renderJobs();
     expect(screen.getByPlaceholderText("Rate limit / min")).toHaveValue(60);
+  });
+
+  it("renders priority dropdown with all options", () => {
+    renderJobs();
+    expect(screen.getByText("High Priority")).toBeInTheDocument();
+    expect(screen.getByText("Medium Priority")).toBeInTheDocument();
+    expect(screen.getByText("Low Priority")).toBeInTheDocument();
   });
 
   it("renders HTTP method dropdown for API Call", () => {

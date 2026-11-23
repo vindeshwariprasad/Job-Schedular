@@ -5,7 +5,7 @@ from datetime import UTC
 import pytest
 from pydantic import ValidationError
 from schemas.auth import Token, UserLogin, UserRegister, UserResponse
-from schemas.job import ALLOWED_METHODS, ALLOWED_TASK_TYPES, JobCreate, JobResponse
+from schemas.job import ALLOWED_METHODS, ALLOWED_PRIORITIES, ALLOWED_TASK_TYPES, JobCreate, JobResponse
 from schemas.schedule import ScheduleCreate, ScheduleResponse
 
 # ── UserRegister Schema ───────────────────────────
@@ -311,6 +311,46 @@ class TestJobCreateSchema:
     def test_allowed_methods_set(self):
         assert ALLOWED_METHODS == {"GET", "POST", "PUT", "DELETE"}
 
+    # --- Priority validation ---
+
+    def test_default_priority(self):
+        job = JobCreate(
+            name="API Job",
+            task_type="api_call",
+            payload={"url": "https://example.com"},
+        )
+        assert job.priority == "MEDIUM"
+
+    def test_priority_high(self):
+        job = JobCreate(
+            name="API Job",
+            task_type="api_call",
+            payload={"url": "https://example.com"},
+            priority="HIGH",
+        )
+        assert job.priority == "HIGH"
+
+    def test_priority_low(self):
+        job = JobCreate(
+            name="API Job",
+            task_type="api_call",
+            payload={"url": "https://example.com"},
+            priority="LOW",
+        )
+        assert job.priority == "LOW"
+
+    def test_invalid_priority_rejected(self):
+        with pytest.raises(ValidationError, match="Invalid priority"):
+            JobCreate(
+                name="API Job",
+                task_type="api_call",
+                payload={"url": "https://example.com"},
+                priority="URGENT",
+            )
+
+    def test_allowed_priorities_set(self):
+        assert ALLOWED_PRIORITIES == {"HIGH", "MEDIUM", "LOW"}
+
 
 # ── JobResponse Schema ───────────────────────────
 
@@ -325,9 +365,11 @@ class TestJobResponseSchema:
         job.payload = {"url": "https://example.com"}
         job.rate_limit_per_min = 60
         job.is_active = True
+        job.priority = "HIGH"
         result = JobResponse.model_validate(job)
         assert result.id == 1
         assert result.is_active is True
+        assert result.priority == "HIGH"
 
 
 # ── ScheduleCreate Schema ────────────────────────

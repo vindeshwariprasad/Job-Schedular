@@ -13,9 +13,11 @@ from metrics.prometheus import (
     job_success_total,
     queue_failed_size,
     queue_processing_size,
+    queue_ready_priority_size,
     queue_ready_size,
     redis_up,
     running_executions,
+    scheduler_backpressure_active,
     scheduler_is_leader,
 )
 from prometheus_client import Counter, Gauge, Histogram
@@ -182,3 +184,33 @@ class TestCircuitBreakerMetrics:
         circuit_breaker_rejections_total.inc()
         after = circuit_breaker_rejections_total._value.get()
         assert after == before + 1
+
+
+class TestPriorityQueueMetrics:
+
+    def test_queue_ready_priority_size_is_gauge(self):
+        assert isinstance(queue_ready_priority_size, Gauge)
+
+    def test_queue_ready_priority_size_name(self):
+        assert queue_ready_priority_size._name == "queue_ready_priority_size"
+
+    def test_queue_ready_priority_size_has_priority_label(self):
+        # Setting a labeled gauge should work without error
+        queue_ready_priority_size.labels(priority="high").set(5)
+        queue_ready_priority_size.labels(priority="medium").set(10)
+        queue_ready_priority_size.labels(priority="low").set(3)
+
+
+class TestBackpressureMetrics:
+
+    def test_scheduler_backpressure_active_is_gauge(self):
+        assert isinstance(scheduler_backpressure_active, Gauge)
+
+    def test_scheduler_backpressure_active_name(self):
+        assert scheduler_backpressure_active._name == "scheduler_backpressure_active"
+
+    def test_scheduler_backpressure_active_set_values(self):
+        scheduler_backpressure_active.set(1)
+        assert scheduler_backpressure_active._value.get() == 1
+        scheduler_backpressure_active.set(0)
+        assert scheduler_backpressure_active._value.get() == 0

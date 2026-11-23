@@ -145,7 +145,7 @@ class TestFullJobLifecycle:
         execution_id = execution.execution_id
 
         # Verify enqueued to Redis
-        assert integration_redis.llen("queue:ready") == 1
+        assert integration_redis.llen("queue:ready:medium") == 1
 
         # Verify schedule completed (max_runs=1)
         integration_db.refresh(schedule)
@@ -719,6 +719,9 @@ class TestStatsEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert "ready" in data
+        assert "ready_high" in data
+        assert "ready_medium" in data
+        assert "ready_low" in data
         assert "processing" in data
         assert "failed" in data
 

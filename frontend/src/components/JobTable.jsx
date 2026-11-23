@@ -24,6 +24,23 @@ export default function JobTable({ jobs }) {
         accessorKey: "task_type",
       },
       {
+        header: "Priority",
+        accessorKey: "priority",
+        cell: ({ getValue }) => {
+          const p = getValue() ?? "MEDIUM";
+          const styles = {
+            HIGH: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+            MEDIUM: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+            LOW: "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+          };
+          return (
+            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${styles[p] || styles.MEDIUM}`}>
+              {p}
+            </span>
+          );
+        },
+      },
+      {
         header: "Rate Limit / min",
         accessorKey: "rate_limit_per_min",
       },

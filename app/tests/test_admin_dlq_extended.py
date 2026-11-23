@@ -82,43 +82,45 @@ class TestQueueDetails:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert "ready" in data
+        assert "ready_high" in data
+        assert "ready_medium" in data
+        assert "ready_low" in data
         assert "processing" in data
         assert "failed" in data
 
     def test_returns_queue_counts(self, client, test_redis):
         headers = _register(client)
-        test_redis.lpush("queue:ready", json.dumps({"execution_id": "e1", "job_id": 1}))
-        test_redis.lpush("queue:ready", json.dumps({"execution_id": "e2", "job_id": 2}))
+        test_redis.lpush("queue:ready:medium", json.dumps({"execution_id": "e1", "job_id": 1}))
+        test_redis.lpush("queue:ready:medium", json.dumps({"execution_id": "e2", "job_id": 2}))
         test_redis.lpush("queue:processing", json.dumps({"execution_id": "e3", "job_id": 1}))
 
         with patch("api.admin_dlq.redis_client", test_redis):
             resp = client.get("/api/v1/admin/dlq/queues/details", headers=headers)
 
         data = resp.json()
-        assert data["ready"]["count"] == 2
+        assert data["ready_medium"]["count"] == 2
         assert data["processing"]["count"] == 1
         assert data["failed"]["count"] == 0
 
     def test_returns_parsed_items(self, client, test_redis):
         headers = _register(client)
-        test_redis.lpush("queue:ready", json.dumps({"execution_id": "e1", "job_id": 1}))
+        test_redis.lpush("queue:ready:medium", json.dumps({"execution_id": "e1", "job_id": 1}))
 
         with patch("api.admin_dlq.redis_client", test_redis):
             resp = client.get("/api/v1/admin/dlq/queues/details", headers=headers)
 
-        items = resp.json()["ready"]["items"]
+        items = resp.json()["ready_medium"]["items"]
         assert len(items) == 1
         assert items[0]["execution_id"] == "e1"
 
     def test_handles_unparseable_items(self, client, test_redis):
         headers = _register(client)
-        test_redis.lpush("queue:ready", "not-json")
+        test_redis.lpush("queue:ready:medium", "not-json")
 
         with patch("api.admin_dlq.redis_client", test_redis):
             resp = client.get("/api/v1/admin/dlq/queues/details", headers=headers)
 
-        items = resp.json()["ready"]["items"]
+        items = resp.json()["ready_medium"]["items"]
         assert len(items) == 1
         assert "raw" in items[0]
 
@@ -127,7 +129,7 @@ class TestQueueStats:
 
     def test_returns_queue_sizes(self, client, test_redis):
         headers = _register(client)
-        test_redis.lpush("queue:ready", "a")
+        test_redis.lpush("queue:ready:medium", "a")
         test_redis.lpush("queue:failed", "b", "c")
 
         with patch("api.admin_dlq.redis_client", test_redis):
@@ -135,6 +137,9 @@ class TestQueueStats:
 
         data = resp.json()
         assert data["ready"] == 1
+        assert data["ready_high"] == 0
+        assert data["ready_medium"] == 1
+        assert data["ready_low"] == 0
         assert data["processing"] == 0
         assert data["failed"] == 2
 

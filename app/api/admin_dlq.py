@@ -1,7 +1,13 @@
 import json
 
 from auth import get_current_user
-from constants import QUEUE_FAILED, QUEUE_PROCESSING, QUEUE_READY
+from constants import (
+    QUEUE_FAILED,
+    QUEUE_PROCESSING,
+    QUEUE_READY_HIGH,
+    QUEUE_READY_LOW,
+    QUEUE_READY_MEDIUM,
+)
 from db.models.dead_letter import DeadLetterJob
 from db.models.execution import Execution, ExecutionStatus
 from db.models.job import Job
@@ -190,8 +196,14 @@ async def list_executions(
 
 @router.get("/queues")
 async def queue_stats(current_user: User = Depends(get_current_user)):
+    high = redis_client.llen(QUEUE_READY_HIGH)
+    med = redis_client.llen(QUEUE_READY_MEDIUM)
+    low = redis_client.llen(QUEUE_READY_LOW)
     return {
-        "ready": redis_client.llen(QUEUE_READY),
+        "ready": high + med + low,
+        "ready_high": high,
+        "ready_medium": med,
+        "ready_low": low,
         "processing": redis_client.llen(QUEUE_PROCESSING),
         "failed": redis_client.llen(QUEUE_FAILED),
     }
@@ -211,9 +223,17 @@ async def queue_details(current_user: User = Depends(get_current_user)):
         return parsed
 
     return {
-        "ready": {
-            "count": redis_client.llen(QUEUE_READY),
-            "items": parse_queue(QUEUE_READY),
+        "ready_high": {
+            "count": redis_client.llen(QUEUE_READY_HIGH),
+            "items": parse_queue(QUEUE_READY_HIGH),
+        },
+        "ready_medium": {
+            "count": redis_client.llen(QUEUE_READY_MEDIUM),
+            "items": parse_queue(QUEUE_READY_MEDIUM),
+        },
+        "ready_low": {
+            "count": redis_client.llen(QUEUE_READY_LOW),
+            "items": parse_queue(QUEUE_READY_LOW),
         },
         "processing": {
             "count": redis_client.llen(QUEUE_PROCESSING),

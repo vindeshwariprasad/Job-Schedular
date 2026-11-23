@@ -33,7 +33,13 @@ job_dlq_total = Counter(
 # -----------------------------
 queue_ready_size = Gauge(
     "queue_ready_size",
-    "Number of jobs in ready queue",
+    "Total number of jobs across all ready queues (backward compat)",
+)
+
+queue_ready_priority_size = Gauge(
+    "queue_ready_priority_size",
+    "Number of jobs in ready queue per priority level",
+    ["priority"],
 )
 
 queue_processing_size = Gauge(
@@ -100,4 +106,10 @@ circuit_breaker_rejections_total = Counter(
     "Total number of requests rejected by an open circuit breaker",
 )
 
-
+# -----------------------------
+# Backpressure
+# -----------------------------
+scheduler_backpressure_active = Gauge(
+    "scheduler_backpressure_active",
+    "Whether scheduler backpressure is active (1 = throttled, 0 = normal)",
+)

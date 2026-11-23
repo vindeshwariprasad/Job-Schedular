@@ -3,9 +3,14 @@ import random
 from datetime import UTC, datetime, timedelta
 
 from config import VISIBILITY_TIMEOUT
-from constants import QUEUE_PROCESSING, QUEUE_READY
+from constants import (
+    ALL_READY_QUEUES,
+    QUEUE_PROCESSING,
+    queue_for_priority,
+)
 from croniter import croniter
 from db.models.execution import Execution, ExecutionStatus
+from db.models.job import Job
 from db.models.schedule import Schedule, ScheduleStatus
 from logging_config import get_logger
 from queues.redis_client import redis_client
@@ -41,7 +46,8 @@ def run_scheduler_once(db: Session, batch_size: int = 100) -> int:
         .all()
     )
 
-    redis_payloads = []
+    # Collect (payload_json, job_id) pairs so we can look up priority after commit
+    enqueue_items: list[tuple[str, int]] = []
 
     for schedule in due_schedules:
         execution_id = generate_execution_id()
@@ -69,16 +75,28 @@ def run_scheduler_once(db: Session, batch_size: int = 100) -> int:
             jitter = timedelta(seconds=random.uniform(0, MAX_JITTER_SECONDS))
             schedule.next_run_at = cron.get_next(datetime) + jitter
 
-        redis_payloads.append(json.dumps({
-            "execution_id": execution_id,
-            "job_id": schedule.job_id,
-        }))
+        enqueue_items.append((
+            json.dumps({
+                "execution_id": execution_id,
+                "job_id": schedule.job_id,
+            }),
+            schedule.job_id,
+        ))
 
     db.commit()
 
+    # Batch-load job priorities for all scheduled jobs
+    if enqueue_items:
+        job_ids = {item[1] for item in enqueue_items}
+        jobs = {j.id: j for j in db.query(Job).filter(Job.id.in_(job_ids)).all()}
+    else:
+        jobs = {}
+
     # Enqueue after commit so Redis and DB are consistent
-    for payload in redis_payloads:
-        redis_client.lpush(QUEUE_READY, payload)
+    for payload, job_id in enqueue_items:
+        job = jobs.get(job_id)
+        queue = queue_for_priority(job.priority if job else "MEDIUM")
+        redis_client.lpush(queue, payload)
 
     return len(due_schedules)
 
@@ -100,6 +118,24 @@ def recover_orphaned_executions(db: Session) -> None:
         .all()
     )
 
+    # 2. Recover orphaned PENDING executions (in DB but not in Redis)
+    orphaned_pending = (
+        db.query(Execution)
+        .filter(
+            Execution.status == ExecutionStatus.PENDING,
+            Execution.created_at < cutoff,
+        )
+        .all()
+    )
+
+    # Batch-load job priorities for all orphaned executions
+    all_orphans = stuck_running + orphaned_pending
+    if all_orphans:
+        job_ids = {e.job_id for e in all_orphans}
+        jobs = {j.id: j for j in db.query(Job).filter(Job.id.in_(job_ids)).all()}
+    else:
+        jobs = {}
+
     for execution in stuck_running:
         logger.warning(
             "Recovering stuck RUNNING execution",
@@ -111,21 +147,15 @@ def recover_orphaned_executions(db: Session) -> None:
             "job_id": execution.job_id,
         })
         redis_client.lrem(QUEUE_PROCESSING, 0, payload)
-        redis_client.lpush(QUEUE_READY, payload)
-
-    # 2. Recover orphaned PENDING executions (in DB but not in Redis)
-    orphaned_pending = (
-        db.query(Execution)
-        .filter(
-            Execution.status == ExecutionStatus.PENDING,
-            Execution.created_at < cutoff,
-        )
-        .all()
-    )
+        job = jobs.get(execution.job_id)
+        queue = queue_for_priority(job.priority if job else "MEDIUM")
+        redis_client.lpush(queue, payload)
 
     if orphaned_pending:
         # Build set of execution_ids already in Redis to avoid duplicates
-        ready_items = redis_client.lrange(QUEUE_READY, 0, -1)
+        ready_items = []
+        for q in ALL_READY_QUEUES:
+            ready_items.extend(redis_client.lrange(q, 0, -1))
         processing_items = redis_client.lrange(QUEUE_PROCESSING, 0, -1)
 
         queued_ids = set()
@@ -141,8 +171,10 @@ def recover_orphaned_executions(db: Session) -> None:
                     "Recovering orphaned PENDING execution",
                     extra={"execution_id": execution.execution_id, "job_id": execution.job_id},
                 )
+                job = jobs.get(execution.job_id)
+                queue = queue_for_priority(job.priority if job else "MEDIUM")
                 redis_client.lpush(
-                    QUEUE_READY,
+                    queue,
                     json.dumps({
                         "execution_id": execution.execution_id,
                         "job_id": execution.job_id,
