@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useJobDependents } from "../hooks/useJobs";
 
 export default function DeleteJobDialog({
@@ -9,18 +9,26 @@ export default function DeleteJobDialog({
   onConfirm,
   onCancel,
 }) {
+  if (!open) return null;
+
+  // Render inner component only when open — cascade state resets on each mount
+  return (
+    <DeleteJobDialogContent
+      jobId={jobId}
+      jobName={jobName}
+      loading={loading}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
+function DeleteJobDialogContent({ jobId, jobName, loading, onConfirm, onCancel }) {
   const [cascade, setCascade] = useState(false);
-  const { data, isLoading } = useJobDependents(open ? jobId : null);
+  const { data, isLoading } = useJobDependents(jobId);
 
   const dependents = data?.dependents || [];
   const hasDependents = dependents.length > 0;
-
-  // Reset cascade choice when dialog opens
-  useEffect(() => {
-    if (open) setCascade(false);
-  }, [open]);
-
-  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
