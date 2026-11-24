@@ -21,13 +21,14 @@ vi.mock("../../api/auth", () => ({
 vi.mock("../../api/jobs", () => ({
   getJobs: vi.fn().mockResolvedValue({
     items: [
-      { id: 1, name: "Test Job", task_type: "api_call", rate_limit_per_min: 60, is_active: true, priority: "MEDIUM" },
+      { id: 1, name: "Test Job", task_type: "api_call", rate_limit_per_min: 60, is_active: true, priority: "MEDIUM", depends_on_job_ids: [], depends_on_jobs: [] },
     ],
     total: 1,
   }),
   createJob: vi.fn().mockResolvedValue({ id: 2, name: "New Job" }),
   getJob: vi.fn(),
   deleteJob: vi.fn(),
+  getJobDependents: vi.fn().mockResolvedValue({ dependents: [] }),
 }));
 
 function renderJobs() {
@@ -110,6 +111,11 @@ describe("Jobs Page", () => {
     expect(screen.getByText("POST")).toBeInTheDocument();
     expect(screen.getByText("PUT")).toBeInTheDocument();
     expect(screen.getByText("DELETE")).toBeInTheDocument();
+  });
+
+  it("renders dependency picker", () => {
+    renderJobs();
+    expect(screen.getByText("Depends On (optional)")).toBeInTheDocument();
   });
 
   it("renders jobs table after loading", async () => {

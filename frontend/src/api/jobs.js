@@ -9,5 +9,8 @@ export const createJob = (data) =>
 export const getJob = (id) =>
   api.get(`/jobs/${id}`).then(res => res.data);
 
-export const deleteJob = (id) =>
-  api.delete(`/jobs/${id}`).then(res => res.data);
+export const getJobDependents = (id) =>
+  api.get(`/jobs/${id}/dependents`).then(res => res.data);
+
+export const deleteJob = (id, cascade = false) =>
+  api.delete(`/jobs/${id}`, { params: { cascade } }).then(res => res.data);

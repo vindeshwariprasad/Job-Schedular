@@ -11,9 +11,11 @@ from constants import (
 from croniter import croniter
 from db.models.execution import Execution, ExecutionStatus
 from db.models.job import Job
+from db.models.job_dependency import JobDependency
 from db.models.schedule import Schedule, ScheduleStatus
 from logging_config import get_logger
 from queues.redis_client import redis_client
+from services.dependency_service import check_parents_satisfied
 from sqlalchemy.orm import Session
 from utils.execution import generate_execution_id
 
@@ -30,6 +32,7 @@ def run_scheduler_once(db: Session, batch_size: int = 100) -> int:
     Scheduler NEVER executes jobs.
     Only picks up schedules that are active (not paused/completed).
     Respects max_runs limit.
+    Handles job dependencies: creates BLOCKED executions when parents not satisfied.
     """
     now = datetime.now(UTC)
 
@@ -46,42 +49,84 @@ def run_scheduler_once(db: Session, batch_size: int = 100) -> int:
         .all()
     )
 
-    # Collect (payload_json, job_id) pairs so we can look up priority after commit
+    # Pre-load dependency info for all due jobs (Issue 2: load BEFORE creating executions)
+    due_job_ids = {s.job_id for s in due_schedules}
+    deps_by_job: dict[int, list[int]] = {}
+    if due_job_ids:
+        all_deps = (
+            db.query(JobDependency)
+            .filter(JobDependency.job_id.in_(due_job_ids))
+            .all()
+        )
+        for dep in all_deps:
+            deps_by_job.setdefault(dep.job_id, []).append(dep.depends_on_job_id)
+
+    # Collect (payload_json, job_id) pairs for PENDING executions only
     enqueue_items: list[tuple[str, int]] = []
 
     for schedule in due_schedules:
         execution_id = generate_execution_id()
+        has_deps = schedule.job_id in deps_by_job
 
-        execution = Execution(
-            job_id=schedule.job_id,
-            execution_id=execution_id,
-            status=ExecutionStatus.PENDING,
-            attempt=1,
-        )
-
-        db.add(execution)
-
-        # Track last run for observability
-        schedule.last_run_at = now
-        schedule.run_count += 1
-
-        # Check if max_runs limit reached
-        if schedule.max_runs is not None and schedule.run_count >= schedule.max_runs:
-            schedule.status = ScheduleStatus.COMPLETED
-            schedule.next_run_at = None
+        # Check if dependencies are satisfied
+        if has_deps:
+            parents_ok = check_parents_satisfied(db, schedule.job_id)
         else:
-            # Compute next run with jitter to avoid thundering herd
+            parents_ok = True
+
+        if parents_ok:
+            # Normal flow: PENDING execution
+            execution = Execution(
+                job_id=schedule.job_id,
+                execution_id=execution_id,
+                status=ExecutionStatus.PENDING,
+                attempt=1,
+            )
+            db.add(execution)
+
+            # Track last run for observability
+            schedule.last_run_at = now
+            schedule.run_count += 1
+
+            # Check if max_runs limit reached
+            if schedule.max_runs is not None and schedule.run_count >= schedule.max_runs:
+                schedule.status = ScheduleStatus.COMPLETED
+                schedule.next_run_at = None
+            else:
+                # Compute next run with jitter to avoid thundering herd
+                cron = croniter(schedule.cron_expression, now)
+                jitter = timedelta(seconds=random.uniform(0, MAX_JITTER_SECONDS))
+                schedule.next_run_at = cron.get_next(datetime) + jitter
+
+            enqueue_items.append((
+                json.dumps({
+                    "execution_id": execution_id,
+                    "job_id": schedule.job_id,
+                }),
+                schedule.job_id,
+            ))
+        else:
+            # Dependencies not satisfied: BLOCKED execution
+            execution = Execution(
+                job_id=schedule.job_id,
+                execution_id=execution_id,
+                status=ExecutionStatus.BLOCKED,
+                attempt=1,
+            )
+            db.add(execution)
+
+            # Do NOT increment run_count (BLOCKED doesn't count toward max_runs)
+            # But DO advance next_run_at so scheduler doesn't retry immediately
             cron = croniter(schedule.cron_expression, now)
             jitter = timedelta(seconds=random.uniform(0, MAX_JITTER_SECONDS))
             schedule.next_run_at = cron.get_next(datetime) + jitter
 
-        enqueue_items.append((
-            json.dumps({
-                "execution_id": execution_id,
-                "job_id": schedule.job_id,
-            }),
-            schedule.job_id,
-        ))
+            logger.info(
+                "Execution BLOCKED: parents %s not all satisfied for job %d",
+                deps_by_job.get(schedule.job_id, []),
+                schedule.job_id,
+                extra={"execution_id": execution_id, "job_id": schedule.job_id},
+            )
 
     db.commit()
 

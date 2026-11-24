@@ -9,6 +9,14 @@ ALL_READY_QUEUES = [QUEUE_READY_HIGH, QUEUE_READY_MEDIUM, QUEUE_READY_LOW]
 QUEUE_PROCESSING = "queue:processing"
 QUEUE_FAILED = "queue:failed"
 
+# ─── Job dependency limits ────────────────────────────
+MAX_DEPENDENCY_PARENTS = 3
+
+# ─── Idempotency ─────────────────────────────────────
+IDEMPOTENCY_TTL = 86400  # 24 hours
+IDEMPOTENCY_PLACEHOLDER_TTL = 60  # seconds — short TTL while request is in-flight
+IDEMPOTENCY_KEY_MAX_LENGTH = 256
+
 # ─── Priority values ──────────────────────────────────
 PRIORITY_HIGH = "HIGH"
 PRIORITY_MEDIUM = "MEDIUM"

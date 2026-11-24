@@ -11,7 +11,7 @@ vi.mock("../../api/auth", () => {
 });
 
 describe("Jobs API", () => {
-  let getJobs, createJob, getJob, deleteJob, api;
+  let getJobs, createJob, getJob, deleteJob, getJobDependents, api;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -22,6 +22,7 @@ describe("Jobs API", () => {
     createJob = mod.createJob;
     getJob = mod.getJob;
     deleteJob = mod.deleteJob;
+    getJobDependents = mod.getJobDependents;
   });
 
   it("getJobs calls GET /jobs with pagination", async () => {
@@ -65,12 +66,30 @@ describe("Jobs API", () => {
     expect(result.name).toBe("Job 5");
   });
 
-  it("deleteJob calls DELETE /jobs/:id", async () => {
+  it("deleteJob calls DELETE /jobs/:id with default cascade=false", async () => {
     api.delete.mockResolvedValue({ data: { ok: true } });
 
     const result = await deleteJob(3);
 
-    expect(api.delete).toHaveBeenCalledWith("/jobs/3");
+    expect(api.delete).toHaveBeenCalledWith("/jobs/3", { params: { cascade: false } });
     expect(result.ok).toBe(true);
+  });
+
+  it("deleteJob passes cascade=true when specified", async () => {
+    api.delete.mockResolvedValue({ data: { ok: true } });
+
+    await deleteJob(3, true);
+
+    expect(api.delete).toHaveBeenCalledWith("/jobs/3", { params: { cascade: true } });
+  });
+
+  it("getJobDependents calls GET /jobs/:id/dependents", async () => {
+    api.get.mockResolvedValue({ data: { dependents: [{ id: 5, name: "Child" }] } });
+
+    const result = await getJobDependents(2);
+
+    expect(api.get).toHaveBeenCalledWith("/jobs/2/dependents");
+    expect(result.dependents).toHaveLength(1);
+    expect(result.dependents[0].name).toBe("Child");
   });
 });

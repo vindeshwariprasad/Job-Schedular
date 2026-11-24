@@ -41,6 +41,21 @@ export default function JobTable({ jobs }) {
         },
       },
       {
+        header: "Deps",
+        accessorKey: "depends_on_job_ids",
+        cell: ({ getValue }) => {
+          const deps = getValue() ?? [];
+          if (deps.length === 0) {
+            return <span className="text-gray-400 dark:text-gray-600">&mdash;</span>;
+          }
+          return (
+            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+              {deps.length} dep{deps.length > 1 ? "s" : ""}
+            </span>
+          );
+        },
+      },
+      {
         header: "Rate Limit / min",
         accessorKey: "rate_limit_per_min",
       },

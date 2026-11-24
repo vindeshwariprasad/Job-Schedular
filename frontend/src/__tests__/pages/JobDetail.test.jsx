@@ -31,8 +31,14 @@ vi.mock("../../api/jobs", () => ({
     rate_limit_per_min: 60,
     is_active: true,
     priority: "HIGH",
+    depends_on_job_ids: [2, 3],
+    depends_on_jobs: [
+      { id: 2, name: "Parent Job A" },
+      { id: 3, name: "Parent Job B" },
+    ],
   }),
   deleteJob: vi.fn().mockResolvedValue({ ok: true }),
+  getJobDependents: vi.fn().mockResolvedValue({ dependents: [] }),
 }));
 
 vi.mock("../../api/schedules", () => ({
@@ -108,14 +114,27 @@ describe("JobDetail Page", () => {
     });
   });
 
-  it("opens delete confirm modal on delete click", async () => {
+  it("renders dependency chips for parent jobs", async () => {
+    renderJobDetail();
+
+    await waitFor(() => {
+      expect(screen.getByText("Dependencies:")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/#2 Parent Job A/)).toBeInTheDocument();
+    expect(screen.getByText(/#3 Parent Job B/)).toBeInTheDocument();
+  });
+
+  it("opens delete dialog on delete click", async () => {
     const user = userEvent.setup();
     renderJobDetail();
 
     await waitFor(() => screen.getByText("Delete Job"));
     await user.click(screen.getByText("Delete Job"));
 
-    expect(screen.getByText("Delete Job", { selector: "h3" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Delete Job #1/)).toBeInTheDocument();
+    });
     expect(screen.getByText(/permanently delete/)).toBeInTheDocument();
   });
 

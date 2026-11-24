@@ -351,6 +351,34 @@ class TestJobCreateSchema:
     def test_allowed_priorities_set(self):
         assert ALLOWED_PRIORITIES == {"HIGH", "MEDIUM", "LOW"}
 
+    # --- Dependency fields ---
+
+    def test_default_depends_on_empty(self):
+        job = JobCreate(
+            name="API Job",
+            task_type="api_call",
+            payload={"url": "https://example.com"},
+        )
+        assert job.depends_on_job_ids == []
+
+    def test_depends_on_valid_ids(self):
+        job = JobCreate(
+            name="API Job",
+            task_type="api_call",
+            payload={"url": "https://example.com"},
+            depends_on_job_ids=[1, 2, 3],
+        )
+        assert job.depends_on_job_ids == [1, 2, 3]
+
+    def test_depends_on_exceeds_max_rejected(self):
+        with pytest.raises(ValidationError):
+            JobCreate(
+                name="API Job",
+                task_type="api_call",
+                payload={"url": "https://example.com"},
+                depends_on_job_ids=[1, 2, 3, 4],
+            )
+
 
 # ── JobResponse Schema ───────────────────────────
 
@@ -370,6 +398,26 @@ class TestJobResponseSchema:
         assert result.id == 1
         assert result.is_active is True
         assert result.priority == "HIGH"
+
+    def test_response_default_dependency_fields(self):
+        resp = JobResponse(
+            id=1, name="Test", task_type="api_call",
+            payload={"url": "https://example.com"},
+            priority="HIGH", rate_limit_per_min=60, is_active=True,
+        )
+        assert resp.depends_on_job_ids == []
+        assert resp.depends_on_jobs == []
+
+    def test_response_with_dependency_fields(self):
+        resp = JobResponse(
+            id=1, name="Test", task_type="api_call",
+            payload={"url": "https://example.com"},
+            priority="HIGH", rate_limit_per_min=60, is_active=True,
+            depends_on_job_ids=[2, 3],
+            depends_on_jobs=[{"id": 2, "name": "Parent A"}, {"id": 3, "name": "Parent B"}],
+        )
+        assert resp.depends_on_job_ids == [2, 3]
+        assert len(resp.depends_on_jobs) == 2
 
 
 # ── ScheduleCreate Schema ────────────────────────

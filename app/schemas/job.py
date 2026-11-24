@@ -15,6 +15,7 @@ class JobCreate(BaseModel):
     payload: dict
     priority: str = Field(default="MEDIUM", examples=["HIGH", "MEDIUM", "LOW"])
     rate_limit_per_min: int = Field(default=60, ge=1)
+    depends_on_job_ids: list[int] = Field(default_factory=list, max_length=3)
 
     @model_validator(mode="after")
     def validate_payload_for_task_type(self):
@@ -71,3 +72,10 @@ class JobResponse(BaseModel):
     priority: str
     rate_limit_per_min: int
     is_active: bool
+    depends_on_job_ids: list[int] = Field(default_factory=list)
+    depends_on_jobs: list[dict] = Field(default_factory=list)
+
+
+class JobDependentResponse(BaseModel):
+    id: int
+    name: str

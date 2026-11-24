@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useCreateJob } from "../hooks/useJobs";
 import JobTable from "../components/JobTable";
 import Pagination from "../components/Pagination";
+import DependencyPicker from "../components/DependencyPicker";
 import { useQuery } from "@tanstack/react-query";
 import { getJobs } from "../api/jobs";
 
@@ -16,6 +17,7 @@ const INITIAL_FORM = {
   expression: "",
   rate_limit_per_min: 60,
   priority: "MEDIUM",
+  depends_on_job_ids: [],
 };
 
 const inputClass =
@@ -48,6 +50,12 @@ export default function Jobs() {
     queryFn: () => getJobs(page, PAGE_SIZE),
   });
 
+  // Also fetch all jobs (unpaginated) for the dependency picker
+  const { data: allJobs } = useQuery({
+    queryKey: ["jobs", "all"],
+    queryFn: () => getJobs(1, 500),
+  });
+
   const buildPayload = () => {
     if (form.task_type === "api_call") {
       return { url: form.url, method: form.method };
@@ -60,13 +68,17 @@ export default function Jobs() {
 
   const submit = (e) => {
     e.preventDefault();
-    createJob.mutate({
+    const data = {
       name: form.name,
       task_type: form.task_type,
       payload: buildPayload(),
       rate_limit_per_min: form.rate_limit_per_min,
       priority: form.priority,
-    });
+    };
+    if (form.depends_on_job_ids.length > 0) {
+      data.depends_on_job_ids = form.depends_on_job_ids;
+    }
+    createJob.mutate(data);
     setForm(INITIAL_FORM);
   };
 
@@ -143,6 +155,13 @@ export default function Jobs() {
             required
           />
         )}
+
+        {/* Dependency picker */}
+        <DependencyPicker
+          jobs={allJobs?.items || []}
+          selectedIds={form.depends_on_job_ids}
+          onChange={(ids) => setForm({ ...form, depends_on_job_ids: ids })}
+        />
 
         <div className="flex gap-3">
           <input

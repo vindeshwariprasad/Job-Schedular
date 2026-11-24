@@ -11,8 +11,8 @@ vi.mock("react-router-dom", async () => {
 });
 
 const jobs = [
-  { id: 1, name: "API Health", task_type: "api_call", rate_limit_per_min: 60, is_active: true, priority: "HIGH" },
-  { id: 2, name: "String Job", task_type: "string_manipulation", rate_limit_per_min: 30, is_active: false, priority: "LOW" },
+  { id: 1, name: "API Health", task_type: "api_call", rate_limit_per_min: 60, is_active: true, priority: "HIGH", depends_on_job_ids: [3, 4] },
+  { id: 2, name: "String Job", task_type: "string_manipulation", rate_limit_per_min: 30, is_active: false, priority: "LOW", depends_on_job_ids: [] },
 ];
 
 function renderTable(data = jobs) {
@@ -31,7 +31,20 @@ describe("JobTable", () => {
     expect(screen.getByText("Type")).toBeInTheDocument();
     expect(screen.getByText("Priority")).toBeInTheDocument();
     expect(screen.getByText("Rate Limit / min")).toBeInTheDocument();
+    expect(screen.getByText("Deps")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
+  });
+
+  it("shows dependency count badge for jobs with deps", () => {
+    renderTable();
+    expect(screen.getByText("2 deps")).toBeInTheDocument();
+  });
+
+  it("shows em-dash for jobs without deps", () => {
+    renderTable();
+    // The em-dash is rendered via &mdash; in a span
+    const dashes = screen.getAllByText("—");
+    expect(dashes.length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders job data correctly", () => {

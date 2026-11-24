@@ -11,6 +11,7 @@ from logging_config import get_logger
 from metrics.prometheus import scheduler_backpressure_active, scheduler_is_leader
 from queues.redis_client import redis_client
 from scheduler.scheduler import recover_orphaned_executions, run_scheduler_once
+from services.dependency_service import sweep_blocked_executions
 
 logger = get_logger("scheduler.runner")
 
@@ -152,10 +153,11 @@ def start_scheduler(redis=None):
                 else:
                     sleep_seconds = min(sleep_seconds * BACKOFF_MULTIPLIER, MAX_SLEEP)
 
-                # Periodic recovery (leader only)
+                # Periodic recovery + BLOCKED sweep (leader only)
                 now = time.monotonic()
                 if now - last_recovery >= RECOVERY_INTERVAL:
                     recover_orphaned_executions(db)
+                    sweep_blocked_executions(db, r)
                     last_recovery = now
 
             except Exception as e:

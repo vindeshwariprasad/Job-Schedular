@@ -10,6 +10,7 @@ class ExecutionStatus(StrEnum):
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
+    BLOCKED = "BLOCKED"
 
     @classmethod
     def terminal_states(cls):

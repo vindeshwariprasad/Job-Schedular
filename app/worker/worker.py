@@ -324,6 +324,25 @@ def process_execution(db: Session, redis: Redis, execution_id: str) -> None:
     job_execution_duration.observe(time.time() - start_time)
     running_executions.dec()
 
+    # ----------------------------
+    # Unblock dependent children
+    # ----------------------------
+    try:
+        from services.dependency_service import unblock_children
+        unblocked = unblock_children(db, redis, job.id)
+        if unblocked > 0:
+            logger.info(
+                "Unblocked %d child execution(s) after job %d succeeded",
+                unblocked, job.id,
+                extra={"execution_id": execution.execution_id, "job_id": job.id},
+            )
+    except Exception as e:
+        logger.error(
+            "Failed to unblock children after job %d succeeded: %s",
+            job.id, e,
+            extra={"execution_id": execution.execution_id, "job_id": job.id},
+        )
+
 
 # ----------------------------
 # Failure handling + retry / DLQ

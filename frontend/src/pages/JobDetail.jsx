@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useJob, useDeleteJob } from "../hooks/useJobs";
 import JsonViewer from "../components/JsonViewer";
 import ScheduleSection from "../components/Schedule";
-import ConfirmModal from "../components/ConfirmModal";
+import DeleteJobDialog from "../components/DeleteJobDialog";
 
 function SkeletonDetail() {
   return (
@@ -32,13 +32,16 @@ export default function JobDetail() {
   const deleteJobMutation = useDeleteJob();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const handleDeleteJob = () => {
-    deleteJobMutation.mutate(job.id, {
-      onSuccess: () => {
-        setShowDeleteConfirm(false);
-        navigate("/jobs");
-      },
-    });
+  const handleDeleteJob = (cascade) => {
+    deleteJobMutation.mutate(
+      { jobId: job.id, cascade },
+      {
+        onSuccess: () => {
+          setShowDeleteConfirm(false);
+          navigate("/jobs");
+        },
+      }
+    );
   };
 
   if (isLoading) return <SkeletonDetail />;
@@ -51,6 +54,15 @@ export default function JobDetail() {
       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">This job may have been deleted.</p>
     </div>
   );
+
+  const priorityStyles = {
+    HIGH: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
+    MEDIUM: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
+    LOW: "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+  };
+
+  const p = job.priority ?? "MEDIUM";
+  const deps = job.depends_on_jobs || [];
 
   return (
     <div className="space-y-6">
@@ -71,20 +83,31 @@ export default function JobDetail() {
         <p className="text-gray-700 dark:text-gray-300"><strong className="text-gray-900 dark:text-white">Rate limit:</strong> {job.rate_limit_per_min} / min</p>
         <p className="text-gray-700 dark:text-gray-300">
           <strong className="text-gray-900 dark:text-white">Priority:</strong>{" "}
-          {(() => {
-            const p = job.priority ?? "MEDIUM";
-            const styles = {
-              HIGH: "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800",
-              MEDIUM: "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800",
-              LOW: "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700",
-            };
-            return (
-              <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${styles[p] || styles.MEDIUM}`}>
-                {p}
-              </span>
-            );
-          })()}
+          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${priorityStyles[p] || priorityStyles.MEDIUM}`}>
+            {p}
+          </span>
         </p>
+
+        {/* Dependencies */}
+        <p className="text-gray-700 dark:text-gray-300">
+          <strong className="text-gray-900 dark:text-white">Dependencies:</strong>{" "}
+          {deps.length === 0 ? (
+            <span className="text-gray-400 dark:text-gray-500">None</span>
+          ) : (
+            <span className="inline-flex flex-wrap gap-1.5 ml-1">
+              {deps.map((d) => (
+                <span
+                  key={d.id}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/jobs/${d.id}`); }}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                >
+                  #{d.id} {d.name}
+                </span>
+              ))}
+            </span>
+          )}
+        </p>
+
         <p className="text-gray-700 dark:text-gray-300">
           <strong className="text-gray-900 dark:text-white">Status:</strong>{" "}
           {job.is_active ? (
@@ -108,12 +131,10 @@ export default function JobDetail() {
 
       <ScheduleSection jobId={job.id} />
 
-      <ConfirmModal
+      <DeleteJobDialog
         open={showDeleteConfirm}
-        title="Delete Job"
-        message="This will permanently delete the job, its schedule, and all execution history. This action cannot be undone."
-        confirmLabel={deleteJobMutation.isPending ? "Deleting..." : "Delete"}
-        variant="danger"
+        jobId={job.id}
+        jobName={job.name}
         loading={deleteJobMutation.isPending}
         onConfirm={handleDeleteJob}
         onCancel={() => setShowDeleteConfirm(false)}
